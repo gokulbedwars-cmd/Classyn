@@ -1,0 +1,2318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Classyn Student</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+/* Apply the saved theme before first paint so the page never flashes the wrong one. */
+(function () {
+  var t = null;
+  try { t = localStorage.getItem('classyn-student-theme'); } catch (e) {}
+  if (!t && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) t = 'dark';
+  document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
+})();
+</script>
+<script>try{var p=localStorage.getItem('classyn-palette');if(p)document.documentElement.setAttribute('data-palette',p)}catch(e){}</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+/* ============================== TOKENS ============================== */
+:root {
+  --bg: #f6f6f6;
+  --card: #ffffff;
+  --input: #f1f1f1;
+  --border: #dedede;
+  --text: #171717;
+  --muted: #6b6b6b;
+  --accent: #ff7800;          /* brand orange: decoration, focus rings, selected borders */
+  --accent-strong: #c25100;   /* filled buttons: white text passes 4.5:1 on this */
+  --accent-strong-hover: #a34500;
+  --accent-text: #b34700;     /* orange text on tinted backgrounds */
+  --accent-tint: #fff1e6;
+  --danger: #c62828;
+  --danger-tint: #fdecec;
+  --success: #16834b;
+  --warn-tint: #fff6db;
+  --warn-text: #7a5200;
+  --shadow: 0 8px 30px rgba(0, 0, 0, .06);
+  --radius: 14px;
+  --sidebar-w: 250px;
+  color-scheme: light;
+}
+[data-theme="dark"] {
+  --bg: #111111;
+  --card: #181818;
+  --input: #222222;
+  --border: #303030;
+  --text: #f2f2f2;
+  --muted: #a3a3a3;
+  --accent-strong: #d45a00;
+  --accent-strong-hover: #e86400;
+  --accent-text: #ff9a3d;
+  --accent-tint: #2b1b0e;
+  --danger: #ff7b72;
+  --danger-tint: #2d1614;
+  --warn-tint: #2b2410;
+  --warn-text: #f0c060;
+  --shadow: 0 8px 30px rgba(0, 0, 0, .28);
+  color-scheme: dark;
+}
+
+/* ============================== BASE ============================== */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+body.modal-open { overflow: hidden; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .55; }
+:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+[data-theme="dark"] :focus-visible { outline-color: var(--accent); }
+[hidden] { display: none !important; }
+h1, h2, h3, h4 { line-height: 1.25; }
+.muted { color: var(--muted); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ============================== ACCESS GATE ============================== */
+.gate { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; padding: 24px; background: var(--bg); }
+.gate-card { width: min(420px, 100%); text-align: center; background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 32px 26px; box-shadow: var(--shadow); }
+.gate-card h1 { font-size: 26px; letter-spacing: -.7px; margin-bottom: 10px; }
+.gate-card p { color: var(--muted); font-size: 14px; }
+.gate-actions { display: flex; gap: 10px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
+
+/* ============================== LAYOUT ============================== */
+.app { min-height: 100vh; }
+.sidebar {
+  position: fixed; inset: 0 auto 0 0; width: var(--sidebar-w); z-index: 100;
+  background: var(--card); border-right: 1px solid var(--border);
+  padding: 22px 14px; overflow-y: auto;
+}
+.brand { font-size: 24px; font-weight: 800; letter-spacing: -.7px; padding: 4px 12px 0; }
+.workspace { color: var(--muted); font-size: 12px; padding: 4px 12px 18px; }
+.sidebar nav { display: flex; flex-direction: column; gap: 3px; }
+.nav-btn {
+  width: 100%; display: flex; align-items: center; gap: 10px; text-align: left;
+  padding: 11px 13px; border: 0; border-radius: 10px; background: transparent;
+  color: var(--muted); font-size: 14px; transition: background .15s, color .15s;
+}
+.nav-btn:hover { background: var(--input); color: var(--text); }
+.nav-btn.active { background: var(--accent-tint); color: var(--accent-text); font-weight: 700; }
+.nav-btn svg { width: 17px; height: 17px; flex: none; }
+.scrim { position: fixed; inset: 0; z-index: 90; background: rgba(0, 0, 0, .45); display: none; }
+
+.main { margin-left: var(--sidebar-w); min-width: 0; }
+.topbar {
+  position: sticky; top: 0; z-index: 80; min-height: 68px;
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: env(safe-area-inset-top) max(24px, env(safe-area-inset-right)) 0 max(24px, env(safe-area-inset-left));
+  background: var(--card); border-bottom: 1px solid var(--border);
+}
+.icon-btn.menu-btn { display: none; }
+.topnav { display: flex; align-items: center; gap: 6px; }
+.top-btn { border: 0; background: transparent; color: var(--muted); padding: 9px 14px; border-radius: 10px; font-weight: 600; transition: background .15s, color .15s; }
+.top-btn:hover { background: var(--input); color: var(--text); }
+.top-btn.top-active { background: var(--accent-tint); color: var(--accent-text); }
+.top-actions { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; justify-content: flex-end; }
+.top-actions .search { width: min(280px, 100%); }
+
+.content { padding: 28px max(24px, env(safe-area-inset-right)) 40px max(24px, env(safe-area-inset-left)); max-width: 1500px; margin: 0 auto; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* ============================== CONTROLS ============================== */
+.field, .search {
+  width: 100%; min-height: 42px; padding: 9px 12px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--input); color: var(--text);
+}
+.field:focus, .search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .18); }
+.field:disabled { opacity: .75; cursor: not-allowed; }
+select.field { cursor: pointer; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 40px; padding: 0 16px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--card); color: var(--text); font-weight: 600; font-size: 14px;
+  transition: border-color .15s, background .15s;
+}
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn-primary { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-strong-hover); border-color: var(--accent-strong-hover); }
+.btn-sm { min-height: 34px; padding: 0 12px; font-size: 13px; }
+.link-btn { border: 0; background: transparent; color: var(--accent-text); font-size: 13px; font-weight: 600; padding: 4px 2px; }
+.link-btn:hover { text-decoration: underline; }
+.icon-btn {
+  width: 42px; height: 42px; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--text); font-size: 20px; line-height: 1;
+}
+.icon-btn:hover { border-color: var(--accent); background: var(--input); }
+.icon-btn svg { width: 18px; height: 18px; }
+
+.profile-btn {
+  display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 4px 12px 4px 5px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--card); text-align: left;
+}
+.profile-btn:hover { border-color: var(--accent); background: var(--input); }
+.profile-avatar { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--accent-strong); color: #fff; font-weight: 800; }
+.profile-info { display: flex; flex-direction: column; line-height: 1.2; }
+.profile-info b { font-size: 13px; }
+.profile-info small { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+.pop-wrap { position: relative; }
+.popover {
+  position: absolute; top: calc(100% + 8px); right: 0; width: min(320px, calc(100vw - 32px)); z-index: 200;
+  background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .18);
+}
+.popover h4 { font-size: 14px; margin-bottom: 6px; }
+.popover p { font-size: 13px; color: var(--muted); }
+
+/* ============================== CONTENT BLOCKS ============================== */
+.welcome { margin-bottom: 22px; }
+.welcome h2 { font-size: 28px; letter-spacing: -.5px; }
+.welcome p, .page-head p { color: var(--muted); font-size: 14px; margin-top: 5px; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+.page-head h2 { font-size: 26px; letter-spacing: -.5px; }
+
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; }
+.card h3 { font-size: 15px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.stat p { color: var(--muted); font-size: 13px; }
+.stat .value { font-size: 30px; font-weight: 800; margin-top: 6px; color: var(--accent-text); }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.toolbar .field { flex: 1 1 220px; width: auto; }
+.toolbar select.field { flex: 0 1 180px; }
+
+.table-wrap { overflow-x: auto; position: relative; }
+table { width: 100%; border-collapse: collapse; min-width: 520px; }
+.table-wrap.wide table { min-width: 780px; }
+th, td { padding: 12px 14px; border-bottom: 1px solid var(--border); text-align: left; font-size: 14px; vertical-align: top; }
+th { color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+tr.break-row td { color: var(--muted); background: var(--input); }
+td.state { text-align: center; color: var(--muted); padding: 28px 14px; }
+.pair { font-size: 13px; line-height: 1.5; }
+.pair strong { font-weight: 600; margin-right: 4px; }
+
+.chip { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; background: var(--accent-tint); color: var(--accent-text); font-size: 12px; font-weight: 600; }
+
+.class-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.class-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.class-top h3 { font-size: 20px; }
+.class-card dl { display: grid; gap: 8px; }
+.class-card dt { color: var(--muted); font-size: 12px; }
+.class-card dd { font-size: 14px; font-weight: 600; }
+
+.day-tabs { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 2px; }
+.day-tab { flex: none; padding: 9px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--muted); font-weight: 600; }
+.day-tab.active { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+.note { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+
+.empty { color: var(--muted); font-size: 14px; padding: 8px 0; }
+.notice + .notice { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+.notice-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
+.notice h3 { font-size: 16px; margin-bottom: 4px; }
+.notice p { font-size: 14px; color: var(--muted); white-space: pre-wrap; }
+
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--border); }
+.setting-row:first-child { padding-top: 0; }
+.setting-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.setting-row .field { width: auto; min-width: 140px; }
+.switch { position: relative; display: inline-flex; width: 46px; height: 26px; flex: none; }
+.switch input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
+.slider { position: absolute; inset: 0; border-radius: 99px; background: #9a9a9a; transition: background .2s; }
+.slider::before { content: ""; position: absolute; width: 20px; height: 20px; left: 3px; top: 3px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.switch input:checked + .slider { background: var(--accent-strong); }
+.switch input:checked + .slider::before { transform: translateX(20px); }
+.switch input:focus-visible + .slider { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+.profile-card h3 { font-size: 20px; margin-bottom: 4px; }
+.profile-card p { color: var(--muted); margin-bottom: 12px; }
+
+/* ============================== MODALS ============================== */
+.modal {
+  position: fixed; inset: 0; z-index: 1000; display: none; align-items: center; justify-content: center;
+  padding: 20px; background: rgba(0, 0, 0, .5); backdrop-filter: blur(3px);
+}
+.modal.open { display: flex; }
+.dialog {
+  width: min(720px, 100%); max-height: min(90vh, 800px); display: flex; flex-direction: column; overflow: hidden;
+  background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 18px;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, .3);
+}
+.dialog.narrow { width: min(520px, 100%); }
+.dialog-head { flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 22px; border-bottom: 1px solid var(--border); }
+.dialog-head h3 { font-size: 20px; }
+.dialog-head p { color: var(--muted); font-size: 13px; margin-top: 3px; }
+.dialog-body { flex: 1 1 auto; overflow-y: auto; padding: 20px 22px; }
+.dialog-foot { flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 14px 22px; border-top: 1px solid var(--border); background: var(--card); }
+.dialog-foot .summary { margin-right: auto; font-size: 13px; color: var(--muted); }
+
+.form-row { display: flex; flex-direction: column; gap: 7px; margin-bottom: 16px; min-width: 0; border: 0; }
+.form-row > label, .form-row > legend, .block h4 { font-size: 13px; font-weight: 600; }
+.form-row > legend { margin-bottom: 7px; padding: 0; }
+.form-row textarea.field { min-height: 110px; resize: vertical; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+.hint { font-size: 12px; color: var(--muted); min-height: 0; }
+.hint.warn { color: var(--warn-text); background: var(--warn-tint); padding: 8px 10px; border-radius: 8px; }
+.block { border-top: 1px solid var(--border); padding-top: 18px; margin-top: 4px; }
+.block > p { font-size: 13px; color: var(--muted); margin: 3px 0 12px; }
+.pair-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; min-height: 34px; }
+.pair-chip { display: inline-flex; align-items: center; gap: 2px; padding: 4px 5px 4px 12px; border-radius: 999px; background: var(--accent-tint); color: var(--accent-text); border: 1px dashed transparent; font-size: 13px; font-weight: 600; }
+.pair-chip.is-new { border-color: var(--accent); }
+.pair-chip button { width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: inherit; font-size: 17px; line-height: 1; }
+.pair-chip button:hover { background: rgba(0, 0, 0, .12); }
+.adder { background: var(--input); border-radius: 12px; padding: 16px; }
+.adder .form-row:last-of-type { margin-bottom: 14px; }
+.adder .field { background: var(--card); }
+.mini-actions { display: flex; gap: 12px; }
+.check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.check { position: relative; display: block; }
+.check input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.check span { display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); font-size: 14px; font-weight: 600; transition: background .12s, border-color .12s; }
+.check input:checked + span { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-text); }
+.check input:focus-visible + span { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+
+/* ============================== TOAST ============================== */
+.toast {
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); z-index: 4000;
+  max-width: min(520px, calc(100vw - 32px)); padding: 12px 18px; border-radius: 12px;
+  background: #222; color: #fff; font-size: 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, .3);
+  opacity: 0; transform: translate(-50%, 12px); pointer-events: none; transition: opacity .2s, transform .2s;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast.success { background: var(--success); }
+.toast.error { background: var(--danger); color: #fff; }
+[data-theme="dark"] .toast.error { background: #b3261e; }
+
+/* ============================== RESPONSIVE ============================== */
+@media (max-width: 900px) {
+  .sidebar { transform: translateX(-100%); visibility: hidden; transition: transform .25s ease, visibility 0s linear .25s; box-shadow: 15px 0 40px rgba(0, 0, 0, .18); padding-top: max(22px, env(safe-area-inset-top)); }
+  body.nav-open .sidebar { transform: translateX(0); visibility: visible; transition-delay: 0s; }
+  body.nav-open .scrim { display: block; }
+  .main { margin-left: 0; }
+  .icon-btn.menu-btn { display: inline-flex; }
+  .topnav { display: none; }
+  .topbar { padding-left: max(14px, env(safe-area-inset-left)); padding-right: max(14px, env(safe-area-inset-right)); }
+  .content { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+}
+@media (max-width: 640px) {
+  .top-actions { gap: 6px; }
+  .top-actions .search { flex: 1; width: auto; min-width: 0; }
+  .top-actions > .icon-btn[data-page="settings"], .profile-info { display: none; }
+  .profile-btn { padding-right: 5px; }
+  .page-head h2 { font-size: 22px; }
+  .welcome h2 { font-size: 23px; }
+  .grid-2 { grid-template-columns: 1fr; }
+  .modal { align-items: flex-end; padding: 0; }
+  .dialog, .dialog.narrow { width: 100%; max-height: 92vh; border-radius: 18px 18px 0 0; border-bottom: 0; }
+  .dialog-head, .dialog-body, .dialog-foot { padding-left: 16px; padding-right: 16px; }
+  .dialog-foot { padding-bottom: calc(14px + env(safe-area-inset-bottom)); flex-wrap: wrap; }
+  .dialog-foot .summary { flex: 1 0 100%; }
+  .setting-row { flex-wrap: wrap; }
+
+  /* Teachers table turns into stacked cards on phones so the Manage button is never off-screen */
+  .table-wrap.wide table { min-width: 0; }
+  .table-wrap.wide thead { display: none; }
+  .table-wrap.wide tbody, .table-wrap.wide tr, .table-wrap.wide td { display: block; }
+  .table-wrap.wide tr.row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .table-wrap.wide td.name-cell, .table-wrap.wide td[data-label="Subjects and classes"], .table-wrap.wide td.action-cell { grid-column: 1 / -1; }
+  .table-wrap.wide tbody tr:last-child { border-bottom: 0; }
+  .table-wrap.wide td { border: 0; padding: 3px 4px; }
+  .table-wrap.wide td[data-label]::before { content: attr(data-label); display: block; color: var(--muted); font-size: 12px; }
+  .table-wrap.wide td.name-cell { font-size: 16px; font-weight: 700; }
+  .table-wrap.wide td.action-cell { padding-top: 10px; }
+  .table-wrap.wide td.state { text-align: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* ============================== STUDENT PAGE ADDITIONS ============================== */
+.icon-btn { position: relative; }
+.bell-count { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--danger); color: #fff; font-size: 10px; font-weight: 800; display: grid; place-items: center; }
+.dash-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.chip.ok { background: #e3f4ea; color: var(--success); }
+.chip.danger { background: var(--danger-tint); color: var(--danger); }
+[data-theme="dark"] .chip.ok { background: #12291d; color: #5fd08c; }
+.profile-card .actions { margin-top: 16px; }
+@media (max-width: 900px) { .dash-grid { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .top-actions > .icon-btn[data-page="settings"] { display: none; } }
+
+.notes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.notes-grid > .empty { grid-column: 1 / -1; }
+.note-card { box-shadow: none; }
+.note-card .class-top { margin-bottom: 4px; }
+.note-card .class-top h3 { font-size: 16px; }
+.small { font-size: 12px; }
+.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin-top: 12px; }
+.thumbs img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); background: var(--input); }
+.thumbs a:hover img { border-color: var(--accent); }
+
+.notif-item { font-size: 13px; margin-top: 8px; color: var(--text); }
+.notif-item b { font-weight: 600; }
+.popover .link-btn { margin-top: 10px; }
+.notice .notice-top { flex-wrap: wrap; }
+
+/* Chat */
+.chat { display: grid; grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); gap: 14px; align-items: stretch; }
+.chat > .card { padding: 0; overflow: hidden; display: flex; flex-direction: column; min-height: 420px; }
+.conv-list { overflow-y: auto; max-height: 560px; }
+.conv { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; text-align: left; padding: 12px 14px; border: 0; border-bottom: 1px solid var(--border); background: transparent; transition: background .15s; }
+.conv:hover { background: var(--input); }
+.conv.active { background: var(--accent-tint); }
+.conv-name { font-weight: 600; font-size: 14px; }
+.conv-last { grid-column: 1 / -1; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bell-count.static { position: static; }
+.thread-head { padding: 14px 16px; border-bottom: 1px solid var(--border); font-weight: 700; }
+.thread { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; max-height: 460px; }
+.msg { max-width: 78%; padding: 9px 12px; border-radius: 12px; background: var(--input); }
+.msg p { font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg small { color: var(--muted); font-size: 11px; }
+.msg.me { align-self: flex-end; background: var(--accent-tint); }
+.reply { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border); }
+.reply .field { flex: 1; }
+@media (max-width: 900px) { .chat { grid-template-columns: 1fr; } }
+
+.chip.muted { background: var(--input); color: var(--muted); }
+
+
+/* ============================== MOTION ============================== */
+@keyframes pageIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes riseIn { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes dialogIn { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes dialogOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(10px) scale(.98); } }
+@keyframes popIn { from { opacity: 0; transform: translateY(-6px) scale(.98); } to { opacity: 1; transform: none; } }
+
+.app:not([hidden]) { animation: fadeIn .45s ease both; }
+.page.enter { animation: pageIn .38s cubic-bezier(.2, .7, .2, 1) both; }
+.page.enter > .card { animation: riseIn .5s cubic-bezier(.2, .7, .2, 1) both; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > * { animation: riseIn .5s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 55ms); }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(1) { --i: 0; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(2) { --i: 1; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(3) { --i: 2; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(4) { --i: 3; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(5) { --i: 4; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(6) { --i: 5; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(7) { --i: 6; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(8) { --i: 7; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(9) { --i: 8; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(10) { --i: 9; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(11) { --i: 10; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(12) { --i: 11; }
+.enter tbody tr { animation: fadeIn .45s ease both; }
+.enter tbody tr:nth-child(1) { animation-delay: 0.04s; }
+.enter tbody tr:nth-child(2) { animation-delay: 0.08s; }
+.enter tbody tr:nth-child(3) { animation-delay: 0.12s; }
+.enter tbody tr:nth-child(4) { animation-delay: 0.16s; }
+.enter tbody tr:nth-child(5) { animation-delay: 0.20s; }
+.enter tbody tr:nth-child(6) { animation-delay: 0.24s; }
+.enter tbody tr:nth-child(7) { animation-delay: 0.28s; }
+.enter tbody tr:nth-child(8) { animation-delay: 0.32s; }
+.swap tr { animation: fadeIn .3s ease both; }
+
+body.nav-open .scrim { animation: fadeIn .25s ease both; }
+.modal.open { animation: fadeIn .2s ease both; }
+.modal.open .dialog { animation: dialogIn .3s cubic-bezier(.2, .8, .2, 1) both; }
+.modal.open.closing { animation: fadeOut .17s ease both; pointer-events: none; }
+.modal.open.closing .dialog { animation: dialogOut .17s ease both; }
+.popover:not([hidden]) { animation: popIn .16s cubic-bezier(.2, .8, .2, 1) both; }
+
+.btn, .icon-btn, .top-btn, .nav-btn, .day-tab, .link-btn, .profile-btn { transition: background .18s ease, border-color .18s ease, color .18s ease, transform .12s ease, box-shadow .18s ease; }
+.btn:active:not(:disabled), .icon-btn:active, .day-tab:active, .profile-btn:active { transform: scale(.97); }
+.card, .notice { transition: border-color .2s ease, box-shadow .25s ease, transform .25s cubic-bezier(.2, .8, .2, 1), background .2s ease; }
+.class-card:hover, .note-card:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 14px 36px rgba(var(--accent-rgb), .14); }
+.field { transition: border-color .18s ease, box-shadow .18s ease, background .18s ease; }
+tbody tr { transition: background .15s ease; }
+tbody tr.row:hover { background: color-mix(in srgb, var(--input) 60%, transparent); }
+.stat .value { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+
+/* ============================== DROPDOWNS ============================== */
+select.field {
+  -webkit-appearance: none; appearance: none; cursor: pointer; padding-right: 36px; text-overflow: ellipsis;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b6b6b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important; background-position: right 12px center !important; background-size: 14px !important;
+}
+[data-theme="dark"] select.field {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a3a3a3' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+}
+select.field option { background: var(--card); color: var(--text); }
+.dd-menu {
+  position: fixed; z-index: 5000; overflow-y: auto; padding: 6px;
+  background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .22);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: 14px; line-height: 1.35;
+  animation: ddIn .16s cubic-bezier(.2, .8, .2, 1) both;
+}
+.dd-opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border-radius: 8px; cursor: pointer; user-select: none; }
+.dd-opt.is-active { background: var(--input); }
+.dd-opt.is-selected { background: var(--accent-tint); color: var(--accent-text); font-weight: 600; }
+.dd-opt.is-selected::after { content: "✓"; font-size: 13px; }
+.dd-opt.is-disabled { color: var(--muted); cursor: not-allowed; opacity: .7; }
+
+@keyframes ddIn { from { opacity: 0; transform: translateY(-6px) scale(.98); } to { opacity: 1; transform: none; } }
+.dd-opt { transition: background .12s, color .12s; }
+
+
+/* ============================== COLOR THEMES ============================== */
+:root { --accent-rgb: 255, 120, 0; --accent2-rgb: 110, 90, 255; }
+[data-theme="light"][data-palette="amber"] {
+  --accent: #f59e0b; --accent-strong: #b45309; --accent-strong-hover: #92400e; --accent-text: #92400e; --accent-tint: #fef3c7;
+  --bg: #faf8f2; --card: #ffffff; --input: #f3efe3; --border: #e6dfcc;
+  --accent-rgb: 245,158,11; --accent2-rgb: 249,115,22;
+}
+[data-theme="dark"][data-palette="amber"] {
+  --accent: #fbbf24; --accent-strong: #b45309; --accent-strong-hover: #d97706; --accent-text: #fbbf24; --accent-tint: #2b2208;
+  --bg: #141108; --card: #1c180d; --input: #262112; --border: #3a3320;
+  --accent-rgb: 245,158,11; --accent2-rgb: 249,115,22;
+}
+[data-theme="light"][data-palette="lime"] {
+  --accent: #84cc16; --accent-strong: #4d7c0f; --accent-strong-hover: #3f6212; --accent-text: #3f6212; --accent-tint: #ecfccb;
+  --bg: #f6f9f0; --card: #ffffff; --input: #eef3e3; --border: #dbe4c7;
+  --accent-rgb: 132,204,22; --accent2-rgb: 34,197,94;
+}
+[data-theme="dark"][data-palette="lime"] {
+  --accent: #a3e635; --accent-strong: #4d7c0f; --accent-strong-hover: #65a30d; --accent-text: #bef264; --accent-tint: #1b2a0b;
+  --bg: #0f1409; --card: #161d0e; --input: #1e2714; --border: #2f3d20;
+  --accent-rgb: 132,204,22; --accent2-rgb: 34,197,94;
+}
+[data-theme="light"][data-palette="forest"] {
+  --accent: #22c55e; --accent-strong: #15803d; --accent-strong-hover: #166534; --accent-text: #166534; --accent-tint: #dcfce7;
+  --bg: #f3f8f4; --card: #ffffff; --input: #e8f1ea; --border: #d1e2d5;
+  --accent-rgb: 34,197,94; --accent2-rgb: 20,184,166;
+}
+[data-theme="dark"][data-palette="forest"] {
+  --accent: #4ade80; --accent-strong: #15803d; --accent-strong-hover: #16a34a; --accent-text: #86efac; --accent-tint: #0f2a17;
+  --bg: #0c130e; --card: #121b14; --input: #19241c; --border: #263a2b;
+  --accent-rgb: 34,197,94; --accent2-rgb: 20,184,166;
+}
+[data-theme="light"][data-palette="teal"] {
+  --accent: #14b8a6; --accent-strong: #0f766e; --accent-strong-hover: #115e59; --accent-text: #115e59; --accent-tint: #ccfbf1;
+  --bg: #f2f8f8; --card: #ffffff; --input: #e6f1f1; --border: #cfe3e3;
+  --accent-rgb: 20,184,166; --accent2-rgb: 59,130,246;
+}
+[data-theme="dark"][data-palette="teal"] {
+  --accent: #2dd4bf; --accent-strong: #0f766e; --accent-strong-hover: #0d9488; --accent-text: #5eead4; --accent-tint: #0d2b29;
+  --bg: #0b1313; --card: #111b1b; --input: #182424; --border: #243c3c;
+  --accent-rgb: 20,184,166; --accent2-rgb: 59,130,246;
+}
+[data-theme="light"][data-palette="sky"] {
+  --accent: #0ea5e9; --accent-strong: #0369a1; --accent-strong-hover: #075985; --accent-text: #075985; --accent-tint: #e0f2fe;
+  --bg: #f2f7fb; --card: #ffffff; --input: #e6eff7; --border: #d0dfec;
+  --accent-rgb: 14,165,233; --accent2-rgb: 99,102,241;
+}
+[data-theme="dark"][data-palette="sky"] {
+  --accent: #38bdf8; --accent-strong: #0369a1; --accent-strong-hover: #0284c7; --accent-text: #7dd3fc; --accent-tint: #0c2a3d;
+  --bg: #0b1218; --card: #111a22; --input: #18232d; --border: #243848;
+  --accent-rgb: 14,165,233; --accent2-rgb: 99,102,241;
+}
+[data-theme="light"][data-palette="ocean"] {
+  --accent: #3b82f6; --accent-strong: #1d4ed8; --accent-strong-hover: #1e40af; --accent-text: #1d4ed8; --accent-tint: #dbeafe;
+  --bg: #f3f6fc; --card: #ffffff; --input: #e8eef9; --border: #d3deef;
+  --accent-rgb: 59,130,246; --accent2-rgb: 168,85,247;
+}
+[data-theme="dark"][data-palette="ocean"] {
+  --accent: #60a5fa; --accent-strong: #1d4ed8; --accent-strong-hover: #2563eb; --accent-text: #93c5fd; --accent-tint: #12244a;
+  --bg: #0c1120; --card: #121a2e; --input: #19233d; --border: #26365a;
+  --accent-rgb: 59,130,246; --accent2-rgb: 168,85,247;
+}
+[data-theme="light"][data-palette="indigo"] {
+  --accent: #6366f1; --accent-strong: #4338ca; --accent-strong-hover: #3730a3; --accent-text: #4338ca; --accent-tint: #e0e7ff;
+  --bg: #f5f5fc; --card: #ffffff; --input: #ebebf8; --border: #d8d8ee;
+  --accent-rgb: 99,102,241; --accent2-rgb: 236,72,153;
+}
+[data-theme="dark"][data-palette="indigo"] {
+  --accent: #818cf8; --accent-strong: #4338ca; --accent-strong-hover: #4f46e5; --accent-text: #a5b4fc; --accent-tint: #1c1c4a;
+  --bg: #0f0f1f; --card: #16162b; --input: #1e1e3a; --border: #2f2f5a;
+  --accent-rgb: 99,102,241; --accent2-rgb: 236,72,153;
+}
+[data-theme="light"][data-palette="grape"] {
+  --accent: #a855f7; --accent-strong: #7e22ce; --accent-strong-hover: #6b21a8; --accent-text: #7e22ce; --accent-tint: #f3e8ff;
+  --bg: #f8f4fc; --card: #ffffff; --input: #f0e9f8; --border: #e2d6ef;
+  --accent-rgb: 168,85,247; --accent2-rgb: 244,114,182;
+}
+[data-theme="dark"][data-palette="grape"] {
+  --accent: #c084fc; --accent-strong: #7e22ce; --accent-strong-hover: #9333ea; --accent-text: #d8b4fe; --accent-tint: #2a1745;
+  --bg: #140d1c; --card: #1c1228; --input: #261a36; --border: #3c2856;
+  --accent-rgb: 168,85,247; --accent2-rgb: 244,114,182;
+}
+[data-theme="light"][data-palette="rose"] {
+  --accent: #ec4899; --accent-strong: #be185d; --accent-strong-hover: #9d174d; --accent-text: #be185d; --accent-tint: #fce7f3;
+  --bg: #fcf4f7; --card: #ffffff; --input: #f7e9ee; --border: #ecd6de;
+  --accent-rgb: 236,72,153; --accent2-rgb: 251,146,60;
+}
+[data-theme="dark"][data-palette="rose"] {
+  --accent: #f472b6; --accent-strong: #be185d; --accent-strong-hover: #db2777; --accent-text: #f9a8d4; --accent-tint: #3a1327;
+  --bg: #170d12; --card: #201219; --input: #2b1a23; --border: #45263a;
+  --accent-rgb: 236,72,153; --accent2-rgb: 251,146,60;
+}
+[data-theme="light"][data-palette="ruby"] {
+  --accent: #ef4444; --accent-strong: #b91c1c; --accent-strong-hover: #991b1b; --accent-text: #b91c1c; --accent-tint: #fee2e2;
+  --bg: #fcf4f4; --card: #ffffff; --input: #f8e9e9; --border: #eed6d6;
+  --accent-rgb: 239,68,68; --accent2-rgb: 249,115,22;
+}
+[data-theme="dark"][data-palette="ruby"] {
+  --accent: #f87171; --accent-strong: #b91c1c; --accent-strong-hover: #dc2626; --accent-text: #fca5a5; --accent-tint: #3a1313;
+  --bg: #170c0c; --card: #211212; --input: #2c1a1a; --border: #472626;
+  --accent-rgb: 239,68,68; --accent2-rgb: 249,115,22;
+}
+[data-theme="light"][data-palette="graphite"] {
+  --accent: #64748b; --accent-strong: #334155; --accent-strong-hover: #1e293b; --accent-text: #334155; --accent-tint: #e2e8f0;
+  --bg: #f3f4f6; --card: #ffffff; --input: #e8eaee; --border: #d5d9e0;
+  --accent-rgb: 100,116,139; --accent2-rgb: 148,163,184;
+}
+[data-theme="dark"][data-palette="graphite"] {
+  --accent: #94a3b8; --accent-strong: #475569; --accent-strong-hover: #64748b; --accent-text: #cbd5e1; --accent-tint: #1e2733;
+  --bg: #0f1114; --card: #161a1f; --input: #1e2329; --border: #2e353e;
+  --accent-rgb: 100,116,139; --accent2-rgb: 148,163,184;
+}
+
+/* theme picker */
+.swatch { display: inline-block; width: 16px; height: 16px; margin-right: 8px; border-radius: 50%; vertical-align: -3px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .18); }
+.tp-mode { display: inline-flex; margin-bottom: 16px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.tp-mode-btn { padding: 8px 16px; border: 0; background: var(--card); color: var(--muted); font-weight: 600; font-size: 14px; transition: background .15s, color .15s; }
+.tp-mode-btn + .tp-mode-btn { border-left: 1px solid var(--border); }
+.tp-mode-btn.is-on { background: var(--accent-tint); color: var(--accent-text); }
+.tp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.tp-card { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 8px 8px 10px; text-align: left; color: var(--text); background: var(--card); border: 2px solid var(--border); border-radius: 14px; transition: transform .18s cubic-bezier(.2, .8, .2, 1), border-color .18s, box-shadow .18s; }
+.tp-card:hover { transform: translateY(-3px); box-shadow: 0 10px 26px rgba(0, 0, 0, .14); }
+.tp-card.is-on { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .18); }
+.tp-mock { display: block; height: 78px; overflow: hidden; border-radius: 9px; background: var(--tp-bg); border: 1px solid var(--tp-border); }
+.tp-bar { display: block; height: 14px; background: var(--tp-card); border-bottom: 1px solid var(--tp-border); position: relative; }
+.tp-bar::after { content: ""; position: absolute; left: 6px; top: 4px; width: 22px; height: 6px; border-radius: 3px; background: var(--tp-strong); }
+.tp-body { display: flex; height: 64px; }
+.tp-side { width: 26px; background: var(--tp-card); border-right: 1px solid var(--tp-border); }
+.tp-main { flex: 1; display: flex; flex-direction: column; gap: 5px; padding: 8px; }
+.tp-line { display: block; height: 6px; width: 70%; border-radius: 3px; background: var(--tp-border); }
+.tp-line.s { width: 45%; }
+.tp-row { display: flex; gap: 5px; margin-top: 2px; }
+.tp-btn { width: 30px; height: 12px; border-radius: 4px; background: var(--tp-strong); }
+.tp-chip { width: 22px; height: 12px; border-radius: 6px; background: var(--tp-tint); box-shadow: inset 0 0 0 1px var(--tp-accent); }
+.tp-name { font-weight: 600; font-size: 14px; }
+.tp-check { position: absolute; right: 10px; bottom: 9px; width: 20px; height: 20px; display: none; place-items: center; border-radius: 50%; background: var(--accent-strong); color: #fff; font-size: 12px; }
+.tp-card.is-on .tp-check { display: grid; }
+
+
+/* ============================== PASSWORD (Profile page) ============================== */
+.pw-card { margin-top: 14px; }
+.pw-card h3 { margin-bottom: 4px; }
+.pw-wrap { position: relative; }
+.pw-wrap .field { padding-right: 46px; }
+.pw-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--muted); }
+.pw-toggle:hover { background: var(--input); color: var(--text); }
+.pw-toggle svg { width: 18px; height: 18px; }
+.alert { padding: 11px 13px; margin: 12px 0; border-radius: 11px; font-size: 13px; line-height: 1.5; }
+.alert.error { background: var(--danger-tint); color: var(--danger); }
+.alert.success { background: #e3f4ea; color: var(--success); }
+.alert.info { background: var(--accent-tint); color: var(--accent-text); }
+[data-theme="dark"] .alert.success { background: #12291d; color: #5fd08c; }
+
+
+/* ============================== SCHOOL CALENDAR ============================== */
+.dash-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; margin-bottom: 14px; }
+.stack { display: grid; gap: 14px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.small { font-size: 12px; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.cal-title { font-size: 1.15rem; font-weight: 700; letter-spacing: -.02em; }
+.cal-nav { display: flex; gap: 6px; }
+.cal-nav button { min-width: 36px; height: 36px; padding: 0 10px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--text); font-weight: 600; font-size: .85rem; transition: background .15s, border-color .15s; }
+.cal-nav button:hover { border-color: var(--accent); background: var(--input); }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.cal-dow { text-align: center; padding: 4px 0; font-size: .74rem; font-weight: 600; color: var(--muted); }
+.cal-day { position: relative; min-height: 64px; padding: 7px 8px 6px; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 2px; text-align: left; border: 1px solid var(--border); border-radius: 12px; background: var(--card); color: var(--text); font-size: .92rem; font-weight: 600; overflow: hidden; transition: transform .15s, border-color .15s, box-shadow .15s; }
+.cal-day:hover { border-color: var(--accent); transform: translateY(-2px); }
+.cal-day small { max-width: 100%; font-size: .68rem; font-weight: 600; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .9; }
+.cal-day.out { opacity: .38; }
+.cal-day.today { box-shadow: 0 0 0 2px var(--accent); }
+.cal-day.sunday { background: var(--input); color: var(--muted); border-color: transparent; }
+.cal-day.holiday { background: var(--danger-tint); color: var(--danger); border-color: transparent; }
+.cal-day.rain { background: #e3f1ff; color: #0b5cad; border-color: transparent; }
+.cal-day.leave { background: var(--warn-tint); color: var(--warn-text); border-color: transparent; }
+.cal-day.work { background: #e3f4ea; color: #16834b; border-color: transparent; }
+[data-theme="dark"] .cal-day.rain { background: #10263d; color: #7cc0ff; }
+[data-theme="dark"] .cal-day.work { background: #12291d; color: #5fd08c; }
+.cal-day.has-event::after { content: ""; position: absolute; right: 8px; top: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.cal.compact .cal-grid { gap: 4px; }
+.cal.compact .cal-day { min-height: 38px; padding: 5px 6px; border-radius: 9px; font-size: .82rem; }
+.cal.compact .cal-day small { display: none; }
+.cal-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 16px; font-size: .82rem; color: var(--muted); }
+.cal-legend span { display: inline-flex; align-items: center; gap: 7px; }
+.cal-legend i { width: 14px; height: 14px; border-radius: 5px; border: 1px solid var(--border); background: var(--card); }
+.cal-legend i.sunday { background: var(--input); } .cal-legend i.holiday { background: var(--danger-tint); }
+.cal-legend i.rain { background: #e3f1ff; } .cal-legend i.leave { background: var(--warn-tint); } .cal-legend i.work { background: #e3f4ea; }
+[data-theme="dark"] .cal-legend i.rain { background: #10263d; } [data-theme="dark"] .cal-legend i.work { background: #12291d; }
+.cal-detail { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: var(--input); font-size: .93rem; min-height: 46px; }
+.cal-detail b { font-weight: 700; }
+.cal-list { margin-top: 18px; }
+.cal-list h4 { font-size: .95rem; margin-bottom: 8px; }
+.cal-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); font-size: .93rem; }
+.cal-row time { flex: none; min-width: 92px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cal-row span.why { flex: 1; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+.cal-today-line { margin-top: 12px; font-size: .92rem; color: var(--muted); }
+.cal-today-line b { color: var(--text); }
+.chip.rain { background: #e3f1ff; color: #0b5cad; } [data-theme="dark"] .chip.rain { background: #10263d; color: #7cc0ff; }
+.chip.holiday { background: var(--danger-tint); color: var(--danger); }
+.chip.leave { background: var(--warn-tint); color: var(--warn-text); }
+.chip.work { background: #e3f4ea; color: #16834b; } [data-theme="dark"] .chip.work { background: #12291d; color: #5fd08c; }
+.cal-empty { color: var(--muted); font-size: .93rem; padding: 6px 0; }
+@media (max-width: 900px) { .dash-grid { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .cal-day { min-height: 50px; padding: 5px 6px; } .cal-day small { display: none; } .cal-grid { gap: 4px; } }
+
+</style>
+</head>
+<body>
+
+<!-- Shown while access is checked, and if the user isn't allowed in -->
+<div id="gate" class="gate">
+  <div class="gate-card">
+    <h1>Classyn</h1>
+    <p id="gateMsg">Checking your access…</p>
+    <div class="gate-actions" id="gateActions" hidden></div>
+  </div>
+</div>
+
+<div class="app" id="app" hidden>
+  <div class="scrim" id="scrim"></div>
+
+  <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+    <div class="brand">Classyn</div>
+    <div class="workspace">Student</div>
+    <nav>
+      <button class="nav-btn active" data-page="home"><i data-lucide="home"></i> Home</button>
+      <button class="nav-btn" data-page="assignments"><i data-lucide="clipboard-list"></i> Assignments</button>
+      <button class="nav-btn" data-page="notes"><i data-lucide="notebook-tabs"></i> Notes</button>
+      <button class="nav-btn" data-page="announcements"><i data-lucide="megaphone"></i> Announcements</button>
+      <button class="nav-btn" data-page="timetable"><i data-lucide="calendar-days"></i> Timetable</button>
+      <button class="nav-btn" data-page="calendar"><i data-lucide="calendar-range"></i> Calendar</button>
+      <button class="nav-btn" data-page="exams"><i data-lucide="file-chart-column"></i> Exams</button>
+      <button class="nav-btn" data-page="results"><i data-lucide="chart-no-axes-column"></i> Results</button>
+      <button class="nav-btn" data-page="myclasses"><i data-lucide="users-round"></i> My Classes</button>
+      <button class="nav-btn" data-page="profile"><i data-lucide="user-round"></i> Profile</button>
+      <button class="nav-btn" data-page="settings"><i data-lucide="settings"></i> Settings</button>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false"><i data-lucide="menu">☰</i></button>
+      <div class="topnav">
+        <button class="top-btn top-active" data-page="home">Home</button>
+        <button class="top-btn" data-page="announcements">Notices</button>
+        <button class="top-btn" data-page="chat">Chat</button>
+      </div>
+      <div class="top-actions">
+        <input id="globalSearch" class="search" type="search" placeholder="Search assignments…" aria-label="Search assignments" autocomplete="off">
+        <div class="pop-wrap">
+          <button class="icon-btn" id="bellBtn" aria-label="Notifications" aria-expanded="false" aria-controls="notifications"><i data-lucide="bell"></i><span class="bell-count" id="bellCount" hidden>0</span></button>
+          <div class="popover" id="notifications" hidden>
+            <h4>Notifications</h4>
+            <p id="notifyText">No new notifications.</p>
+            <div id="notifyList"></div>
+            <button type="button" class="link-btn" id="markNotifRead" hidden>Mark all as read</button>
+          </div>
+        </div>
+        <button class="icon-btn" data-page="settings" aria-label="Settings"><i data-lucide="settings"></i></button>
+        <button class="profile-btn" data-page="profile" aria-label="Your profile">
+          <span class="profile-avatar" id="avatar">S</span>
+          <span class="profile-info"><b id="studentName">Student</b><small>Student</small></span>
+        </button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <section id="home" class="page active">
+        <div class="welcome">
+          <h2 id="welcomeTitle">Welcome</h2>
+          <p id="quote">Small progress still counts.</p>
+        </div>
+        <div class="stats">
+          <div class="card stat"><p>Assignments</p><div class="value" id="statAssignments">–</div></div>
+          <div class="card stat"><p>Attendance</p><div class="value" id="statAttendance">–</div></div>
+          <div class="card stat"><p>Unread messages</p><div class="value" id="statUnread">–</div></div>
+          <div class="card stat"><p>Homework done</p><div class="value" id="statDone">–</div></div>
+        </div>
+        <div class="dash-grid">
+          <div class="card">
+            <div class="card-head"><h3 id="todayTitle">Today's timetable</h3><button class="btn btn-sm" data-page="timetable">Full timetable</button></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Period</th><th>Time</th><th>Subject</th><th>Teacher</th></tr></thead>
+                <tbody id="todayTable"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Quick actions</h3>
+            <div class="actions">
+              <button class="btn btn-primary" data-page="assignments">View assignments</button>
+              <button class="btn" data-page="timetable">Timetable</button>
+              <button class="btn" data-page="announcements">Announcements</button>
+              <button class="btn" data-page="myclasses">My class</button>
+            </div>
+          </div>
+        </div>
+        <div class="dash-grid">
+          <div class="card">
+            <div class="card-head"><h3>School calendar</h3><button class="btn btn-sm" data-page="calendar">Open calendar</button></div>
+            <div id="calMini"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>Coming up</h3></div>
+            <div id="calUpcoming"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="assignments" class="page">
+        <div class="page-head"><div><h2>Assignments</h2><p>Homework and tasks from your teachers.</p></div></div>
+        <div class="card">
+          <div class="toolbar">
+            <input id="assignmentSearch" class="field" type="search" placeholder="Search assignments…" aria-label="Search assignments">
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Title</th><th>Subject</th><th>Due</th><th>Status</th><th><span class="sr-only">Action</span></th></tr></thead>
+              <tbody id="assignmentTable"><tr><td colspan="5" class="state">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="notes" class="page">
+        <div class="page-head"><div><h2>Notes</h2><p>Study material shared by your teachers.</p></div></div>
+        <div class="card">
+          <div class="toolbar">
+            <input id="noteSearch" class="field" type="search" placeholder="Search notes…" aria-label="Search notes">
+          </div>
+          <div id="noteGrid" class="notes-grid"><p class="empty">Loading…</p></div>
+        </div>
+      </section>
+
+      <section id="announcements" class="page">
+        <div class="page-head"><div><h2>Announcements</h2><p>School notices for students.</p></div></div>
+        <div class="card">
+          <div class="toolbar">
+            <input id="noticeSearch" class="field" type="search" placeholder="Search announcements…" aria-label="Search announcements">
+          </div>
+          <div id="noticeList"><p class="empty">Loading…</p></div>
+        </div>
+      </section>
+
+      <section id="timetable" class="page">
+        <div class="page-head"><div><h2>Timetable</h2><p>Your class periods for each school day.</p></div></div>
+        <div class="card">
+          <div class="day-tabs" id="days" role="group" aria-label="Day of the week"></div>
+          <p class="note" id="ttNote" hidden>Your timetable hasn’t been set up yet. Your school office adds it.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Period</th><th>Time</th><th>Subject</th><th>Teacher</th></tr></thead>
+              <tbody id="timeTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="exams" class="page">
+        <div class="page-head"><div><h2>Exams</h2><p>Exam periods for your class.</p></div></div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Exam</th><th>Starts</th><th>Ends</th><th>Status</th></tr></thead>
+              <tbody id="examTable"><tr><td colspan="4" class="state">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="results" class="page">
+        <div class="page-head"><div><h2>Results</h2><p>Your examination results.</p></div></div>
+        <div class="stats" id="resultStats"></div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Exam</th><th>Subject</th><th>Marks</th><th>Percentage</th><th>Grade</th></tr></thead>
+              <tbody id="resultTable"><tr><td colspan="5" class="state">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="myclasses" class="page">
+        <div class="page-head"><div><h2>My Classes</h2><p>Your class and class teacher.</p></div></div>
+        <div id="classGrid" class="class-grid"><div class="card empty">Loading…</div></div>
+      </section>
+
+      <section id="chat" class="page">
+        <div class="page-head">
+          <div><h2>Chat</h2><p>Message your teachers.</p></div>
+          <button class="btn btn-primary" id="newChatBtn">New message</button>
+        </div>
+        <div class="chat">
+          <div class="card"><div class="conv-list" id="convList"></div></div>
+          <div class="card">
+            <div class="thread-head" id="threadHead">Select a conversation</div>
+            <div class="thread" id="threadBody"></div>
+            <form class="reply" id="replyForm" hidden>
+              <input class="field" id="replyText" placeholder="Write a reply…" maxlength="2000" required autocomplete="off" aria-label="Reply">
+              <button type="submit" class="btn btn-primary">Send</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section id="profile" class="page">
+        <div class="page-head"><div><h2>Profile</h2><p>Your student account.</p></div></div>
+        <div class="card profile-card">
+          <h3 id="profileName">Student</h3>
+          <p id="profileEmail">–</p>
+          <span class="chip" id="profileClass">Student</span>
+        </div>
+        <div class="card pw-card" id="pwCard">
+          <h3>Change password</h3>
+          <p class="muted small">Choose a new password and save. You stay signed in.</p>
+          <div id="pwMsg" class="alert" hidden role="alert" aria-live="polite"></div>
+          <form id="pwForm" novalidate>
+            <div class="grid-2" style="margin-top:14px">
+              <div class="form-row">
+                <label for="pwNew">New password</label>
+                <div class="pw-wrap"><input class="field" id="pwNew" type="password" autocomplete="new-password" placeholder="At least 8 characters"><button type="button" class="pw-toggle" data-for="pwNew" aria-label="Show password"></button></div>
+              </div>
+              <div class="form-row">
+                <label for="pwConfirm">Confirm new password</label>
+                <div class="pw-wrap"><input class="field" id="pwConfirm" type="password" autocomplete="new-password" placeholder="Type it again"><button type="button" class="pw-toggle" data-for="pwConfirm" aria-label="Show password"></button></div>
+              </div>
+            </div>
+            <div class="actions" style="margin-top:0"><button type="submit" class="btn btn-primary" id="pwSave">Save password</button></div>
+          </form>
+        </div>
+      </section>
+
+      <section id="settings" class="page">
+        <div class="page-head"><div><h2>Settings</h2><p>Your preferences on this device.</p></div></div>
+        <div class="card">
+          <div class="setting-row">
+            <label for="appearance"><b>Appearance</b></label>
+            <select class="field" id="appearance"><option value="light">Light</option><option value="dark">Dark</option></select>
+          </div>
+          <div class="setting-row">
+            <div><b>Color theme</b><div class="muted small" id="paletteName">Sunset</div></div>
+            <button type="button" class="btn" id="themeBtn"><span class="swatch" id="themeSwatch"></span>Change theme</button>
+          </div>
+          <div class="setting-row">
+            <label for="notifyToggle"><b>Assignment notifications</b></label>
+            <span class="switch"><input type="checkbox" id="notifyToggle" checked><span class="slider"></span></span>
+          </div>
+          <div class="setting-row">
+            <label for="noticeToggle"><b>Announcement notifications</b></label>
+            <span class="switch"><input type="checkbox" id="noticeToggle" checked><span class="slider"></span></span>
+          </div>
+          <div class="setting-row">
+            <b>Account</b>
+            <button class="btn" id="signOutBtn">Sign out</button>
+          </div>
+        </div>
+      </section>
+
+
+      <section id="calendar" class="page">
+        <div class="page-head"><div><h2>School calendar</h2><p>Sundays are weekly leave. Holidays, rain holidays and leave days are set by the school admin.</p></div></div>
+        <div class="card"><div id="calFull"></div></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- New message -->
+<div class="modal" id="newChatModal">
+  <form class="dialog narrow" id="newChatForm" role="dialog" aria-modal="true" aria-labelledby="newChatTitle">
+    <div class="dialog-head">
+      <div><h3 id="newChatTitle">New message</h3><p>Ask your teacher a question.</p></div>
+      <button type="button" class="icon-btn" data-close="newChatModal" aria-label="Close">×</button>
+    </div>
+    <div class="dialog-body">
+      <div class="form-row"><label for="chatTeacher">Teacher</label><select class="field" id="chatTeacher" required data-autofocus></select></div>
+      <div class="form-row"><label for="chatMessage">Message</label><textarea class="field" id="chatMessage" rows="5" required maxlength="2000"></textarea></div>
+    </div>
+    <div class="dialog-foot">
+      <button type="button" class="btn" data-close="newChatModal">Cancel</button>
+      <button type="submit" class="btn btn-primary" id="newChatSend">Send message</button>
+    </div>
+  </form>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* Styled dropdown list for every <select>. The real <select> stays in the page (value, change events, form reset
+   and code that fills it all keep working); only the popup list is replaced. Phones keep their native picker. */
+(function () {
+  'use strict';
+  if (window.__classynDropdown) return;
+  window.__classynDropdown = true;
+  if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return;
+
+  var menu = null, sel = null, active = -1;
+
+  function options() { return Array.prototype.slice.call(sel.options); }
+
+  function close(refocus) {
+    if (menu) { menu.remove(); menu = null; }
+    var s = sel; sel = null; active = -1;
+    if (refocus && s && document.contains(s)) s.focus();
+  }
+
+  function setActive(i, scroll) {
+    var items = menu.children;
+    if (active >= 0 && items[active]) items[active].classList.remove('is-active');
+    active = i;
+    if (items[i]) {
+      items[i].classList.add('is-active');
+      if (scroll !== false) items[i].scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  function choose(i) {
+    var o = sel && sel.options[i];
+    if (!o || o.disabled) return;
+    var s = sel, changed = s.selectedIndex !== i;
+    s.selectedIndex = i;
+    close(true);
+    if (changed) {
+      s.dispatchEvent(new Event('input', { bubbles: true }));
+      s.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
+  function step(dir) {
+    var opts = options(), i = active;
+    for (var n = 0; n < opts.length; n++) {
+      i = (i + dir + opts.length) % opts.length;
+      if (!opts[i].disabled) { setActive(i); return; }
+    }
+  }
+
+  function open(s) {
+    close(false);
+    if (s.disabled || !s.options.length) return;
+    sel = s;
+    menu = document.createElement('div');
+    menu.className = 'dd-menu';
+    menu.setAttribute('role', 'listbox');
+    options().forEach(function (o, i) {
+      var d = document.createElement('div');
+      d.className = 'dd-opt' + (i === s.selectedIndex ? ' is-selected' : '') + (o.disabled ? ' is-disabled' : '');
+      d.setAttribute('role', 'option');
+      d.setAttribute('aria-selected', String(i === s.selectedIndex));
+      d.textContent = o.textContent;
+      d.dataset.i = i;
+      menu.appendChild(d);
+    });
+    document.body.appendChild(menu);
+
+    var r = s.getBoundingClientRect(), vh = window.innerHeight, vw = window.innerWidth;
+    var below = vh - r.bottom - 12, above = r.top - 12;
+    var h = Math.min(menu.scrollHeight + 2, 320);
+    var placeAbove = h > below && above > below;
+    var maxH = Math.max(120, Math.min(320, placeAbove ? above : below));
+    menu.style.maxHeight = maxH + 'px';
+    menu.style.minWidth = Math.max(r.width, 140) + 'px';
+    var mh = Math.min(h, maxH);
+    menu.style.top = (placeAbove ? Math.max(8, r.top - mh - 4) : r.bottom + 4) + 'px';
+    var left = r.left, w = menu.offsetWidth;
+    if (left + w > vw - 8) left = Math.max(8, vw - 8 - w);
+    menu.style.left = left + 'px';
+
+    setActive(s.selectedIndex >= 0 ? s.selectedIndex : 0);
+  }
+
+  // Open on click instead of the browser's own popup
+  document.addEventListener('mousedown', function (e) {
+    var t = e.target;
+    if (menu && menu.contains(t)) { e.preventDefault(); return; }       // keep focus on the select
+    if (t.closest && t.closest('select') && !t.closest('select[multiple]')) {
+      var s = t.closest('select');
+      e.preventDefault();
+      if (s.disabled) return;
+      s.focus();
+      if (menu && sel === s) close(false); else open(s);
+      return;
+    }
+    if (menu) close(false);
+  }, true);
+
+  document.addEventListener('click', function (e) {
+    if (!menu) return;
+    var o = e.target.closest && e.target.closest('.dd-opt');
+    if (o && menu.contains(o)) choose(+o.dataset.i);
+  }, true);
+
+  document.addEventListener('mouseover', function (e) {
+    if (!menu) return;
+    var o = e.target.closest && e.target.closest('.dd-opt');
+    if (o && menu.contains(o) && !o.classList.contains('is-disabled')) setActive(+o.dataset.i, false);
+  });
+
+  window.addEventListener('keydown', function (e) {
+    if (menu) {
+      var k = e.key, handled = true;
+      if (k === 'ArrowDown') step(1);
+      else if (k === 'ArrowUp') step(-1);
+      else if (k === 'Home') { active = -1; step(1); }
+      else if (k === 'End') { active = 0; step(-1); }
+      else if (k === 'Enter' || k === ' ') choose(active);
+      else if (k === 'Escape') close(true);
+      else if (k === 'Tab') { close(false); handled = false; }
+      else handled = false;
+      if (handled) { e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
+    var t = e.target;
+    if (t && t.tagName === 'SELECT' && !t.multiple && !t.disabled && (e.key === 'Enter' || e.key === ' ' || (e.altKey && e.key === 'ArrowDown'))) {
+      e.preventDefault(); open(t);
+    }
+  }, true);
+
+  window.addEventListener('resize', function () { if (menu) close(false); });
+  window.addEventListener('scroll', function (e) { if (menu && !(menu.contains(e.target))) close(false); }, true);
+})();
+</script>
+<script>
+/* Color themes: 12 palettes, applied instantly and remembered on this device (shared by every Classyn page). */
+(function () {
+  'use strict';
+  if (window.__classynThemes) return;
+  window.__classynThemes = true;
+
+  var KEY = 'classyn-palette', DEFAULT = 'sunset';
+  var PALETTES = [{"id": "sunset", "name": "Sunset", "light": {"accent": "#ff7800", "strong": "#c25100", "hover": "#a34500", "text": "#b34700", "tint": "#fff1e6", "bg": "#f6f6f6", "card": "#ffffff", "input": "#f1f1f1", "border": "#dedede"}, "dark": {"accent": "#ff7800", "strong": "#d45a00", "hover": "#e86400", "text": "#ff9a3d", "tint": "#2b1b0e", "bg": "#111111", "card": "#181818", "input": "#222222", "border": "#303030"}}, {"id": "amber", "name": "Amber", "light": {"accent": "#f59e0b", "strong": "#b45309", "hover": "#92400e", "text": "#92400e", "tint": "#fef3c7", "bg": "#faf8f2", "card": "#ffffff", "input": "#f3efe3", "border": "#e6dfcc"}, "dark": {"accent": "#fbbf24", "strong": "#b45309", "hover": "#d97706", "text": "#fbbf24", "tint": "#2b2208", "bg": "#141108", "card": "#1c180d", "input": "#262112", "border": "#3a3320"}}, {"id": "lime", "name": "Lime", "light": {"accent": "#84cc16", "strong": "#4d7c0f", "hover": "#3f6212", "text": "#3f6212", "tint": "#ecfccb", "bg": "#f6f9f0", "card": "#ffffff", "input": "#eef3e3", "border": "#dbe4c7"}, "dark": {"accent": "#a3e635", "strong": "#4d7c0f", "hover": "#65a30d", "text": "#bef264", "tint": "#1b2a0b", "bg": "#0f1409", "card": "#161d0e", "input": "#1e2714", "border": "#2f3d20"}}, {"id": "forest", "name": "Forest", "light": {"accent": "#22c55e", "strong": "#15803d", "hover": "#166534", "text": "#166534", "tint": "#dcfce7", "bg": "#f3f8f4", "card": "#ffffff", "input": "#e8f1ea", "border": "#d1e2d5"}, "dark": {"accent": "#4ade80", "strong": "#15803d", "hover": "#16a34a", "text": "#86efac", "tint": "#0f2a17", "bg": "#0c130e", "card": "#121b14", "input": "#19241c", "border": "#263a2b"}}, {"id": "teal", "name": "Teal", "light": {"accent": "#14b8a6", "strong": "#0f766e", "hover": "#115e59", "text": "#115e59", "tint": "#ccfbf1", "bg": "#f2f8f8", "card": "#ffffff", "input": "#e6f1f1", "border": "#cfe3e3"}, "dark": {"accent": "#2dd4bf", "strong": "#0f766e", "hover": "#0d9488", "text": "#5eead4", "tint": "#0d2b29", "bg": "#0b1313", "card": "#111b1b", "input": "#182424", "border": "#243c3c"}}, {"id": "sky", "name": "Sky", "light": {"accent": "#0ea5e9", "strong": "#0369a1", "hover": "#075985", "text": "#075985", "tint": "#e0f2fe", "bg": "#f2f7fb", "card": "#ffffff", "input": "#e6eff7", "border": "#d0dfec"}, "dark": {"accent": "#38bdf8", "strong": "#0369a1", "hover": "#0284c7", "text": "#7dd3fc", "tint": "#0c2a3d", "bg": "#0b1218", "card": "#111a22", "input": "#18232d", "border": "#243848"}}, {"id": "ocean", "name": "Ocean", "light": {"accent": "#3b82f6", "strong": "#1d4ed8", "hover": "#1e40af", "text": "#1d4ed8", "tint": "#dbeafe", "bg": "#f3f6fc", "card": "#ffffff", "input": "#e8eef9", "border": "#d3deef"}, "dark": {"accent": "#60a5fa", "strong": "#1d4ed8", "hover": "#2563eb", "text": "#93c5fd", "tint": "#12244a", "bg": "#0c1120", "card": "#121a2e", "input": "#19233d", "border": "#26365a"}}, {"id": "indigo", "name": "Indigo", "light": {"accent": "#6366f1", "strong": "#4338ca", "hover": "#3730a3", "text": "#4338ca", "tint": "#e0e7ff", "bg": "#f5f5fc", "card": "#ffffff", "input": "#ebebf8", "border": "#d8d8ee"}, "dark": {"accent": "#818cf8", "strong": "#4338ca", "hover": "#4f46e5", "text": "#a5b4fc", "tint": "#1c1c4a", "bg": "#0f0f1f", "card": "#16162b", "input": "#1e1e3a", "border": "#2f2f5a"}}, {"id": "grape", "name": "Grape", "light": {"accent": "#a855f7", "strong": "#7e22ce", "hover": "#6b21a8", "text": "#7e22ce", "tint": "#f3e8ff", "bg": "#f8f4fc", "card": "#ffffff", "input": "#f0e9f8", "border": "#e2d6ef"}, "dark": {"accent": "#c084fc", "strong": "#7e22ce", "hover": "#9333ea", "text": "#d8b4fe", "tint": "#2a1745", "bg": "#140d1c", "card": "#1c1228", "input": "#261a36", "border": "#3c2856"}}, {"id": "rose", "name": "Rose", "light": {"accent": "#ec4899", "strong": "#be185d", "hover": "#9d174d", "text": "#be185d", "tint": "#fce7f3", "bg": "#fcf4f7", "card": "#ffffff", "input": "#f7e9ee", "border": "#ecd6de"}, "dark": {"accent": "#f472b6", "strong": "#be185d", "hover": "#db2777", "text": "#f9a8d4", "tint": "#3a1327", "bg": "#170d12", "card": "#201219", "input": "#2b1a23", "border": "#45263a"}}, {"id": "ruby", "name": "Ruby", "light": {"accent": "#ef4444", "strong": "#b91c1c", "hover": "#991b1b", "text": "#b91c1c", "tint": "#fee2e2", "bg": "#fcf4f4", "card": "#ffffff", "input": "#f8e9e9", "border": "#eed6d6"}, "dark": {"accent": "#f87171", "strong": "#b91c1c", "hover": "#dc2626", "text": "#fca5a5", "tint": "#3a1313", "bg": "#170c0c", "card": "#211212", "input": "#2c1a1a", "border": "#472626"}}, {"id": "graphite", "name": "Graphite", "light": {"accent": "#64748b", "strong": "#334155", "hover": "#1e293b", "text": "#334155", "tint": "#e2e8f0", "bg": "#f3f4f6", "card": "#ffffff", "input": "#e8eaee", "border": "#d5d9e0"}, "dark": {"accent": "#94a3b8", "strong": "#475569", "hover": "#64748b", "text": "#cbd5e1", "tint": "#1e2733", "bg": "#0f1114", "card": "#161a1f", "input": "#1e2329", "border": "#2e353e"}}];
+  var byId = {};
+  PALETTES.forEach(function (p) { byId[p.id] = p; });
+
+  var root = document.documentElement, modal = null, opener = null;
+
+  function stored() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+  function current() { var id = root.getAttribute('data-palette') || stored() || DEFAULT; return byId[id] ? id : DEFAULT; }
+  function mode() { return root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'; }
+
+  function refreshLabels() {
+    var p = byId[current()];
+    var name = document.getElementById('paletteName'), sw = document.getElementById('themeSwatch');
+    if (name) name.textContent = p.name;
+    if (sw) sw.style.background = 'linear-gradient(135deg, ' + p.light.accent + ', ' + p.light.strong + ')';
+    if (modal) modal.querySelectorAll('.tp-card').forEach(function (c) {
+      var on = c.dataset.palette === p.id;
+      c.classList.toggle('is-on', on); c.setAttribute('aria-pressed', String(on));
+    });
+  }
+
+  function apply(id) {
+    if (!byId[id]) id = DEFAULT;
+    root.setAttribute('data-palette', id);
+    try { localStorage.setItem(KEY, id); } catch (e) {}
+    refreshLabels();
+  }
+
+  function setMode(v) {
+    var sel = document.getElementById('appearance') || document.getElementById('appearanceSelect');
+    if (sel) { sel.value = v; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+    else root.setAttribute('data-theme', v);
+  }
+
+  function renderGrid() {
+    var m = mode();
+    modal.querySelectorAll('.tp-mode-btn').forEach(function (b) { b.classList.toggle('is-on', b.dataset.mode === m); });
+    var grid = modal.querySelector('#tpGrid');
+    grid.innerHTML = PALETTES.map(function (p) {
+      var c = p[m];
+      var vars = '--tp-bg:' + c.bg + ';--tp-card:' + c.card + ';--tp-border:' + c.border + ';--tp-accent:' + c.accent + ';--tp-strong:' + c.strong + ';--tp-tint:' + c.tint;
+      return '<button type="button" class="tp-card" data-palette="' + p.id + '" aria-pressed="false" style="' + vars + '">' +
+        '<span class="tp-mock"><span class="tp-bar"></span><span class="tp-body"><span class="tp-side"></span>' +
+        '<span class="tp-main"><span class="tp-line"></span><span class="tp-line s"></span><span class="tp-row"><i class="tp-btn"></i><i class="tp-chip"></i></span></span></span></span>' +
+        '<span class="tp-name">' + p.name + '</span><span class="tp-check" aria-hidden="true">✓</span></button>';
+    }).join('');
+    refreshLabels();
+  }
+
+  function build() {
+    modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'themeModal';
+    modal.innerHTML =
+      '<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="themeDlgTitle">' +
+        '<div class="dialog-head"><div><h3 id="themeDlgTitle">Choose a theme</h3><p>Pick a color. It applies right away and is remembered on this device.</p></div>' +
+        '<button type="button" class="icon-btn" data-tp-close aria-label="Close">×</button></div>' +
+        '<div class="dialog-body"><div class="tp-mode" role="group" aria-label="Appearance">' +
+          '<button type="button" class="tp-mode-btn" data-mode="light">☀ Light</button><button type="button" class="tp-mode-btn" data-mode="dark">☾ Dark</button></div>' +
+          '<div class="tp-grid" id="tpGrid"></div></div>' +
+        '<div class="dialog-foot"><button type="button" class="btn" id="tpReset" style="margin-right:auto">Reset to default</button>' +
+        '<button type="button" class="btn btn-primary" data-tp-close>Done</button></div>' +
+      '</div>';
+    document.body.appendChild(modal);
+
+    modal.addEventListener('click', function (e) {
+      var card = e.target.closest('.tp-card');
+      if (card) { apply(card.dataset.palette); return; }
+      var mb = e.target.closest('.tp-mode-btn');
+      if (mb) { setMode(mb.dataset.mode); return; }
+      if (e.target.closest('[data-tp-close]')) { close(); return; }
+      if (e.target.closest('#tpReset')) apply(DEFAULT);
+    });
+    modal.addEventListener('mousedown', function (e) { if (e.target === modal) close(); });
+    // keep the preview cards in step if light/dark is switched while the dialog is open
+    new MutationObserver(function () { if (modal.classList.contains('open')) renderGrid(); }).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  }
+
+  function open() {
+    if (!modal) build();
+    opener = document.activeElement;
+    renderGrid();
+    modal.classList.remove('closing');
+    modal.classList.add('open');
+    document.body.classList.add('modal-open');
+    var on = modal.querySelector('.tp-card.is-on') || modal.querySelector('.tp-card');
+    if (on) on.focus();
+  }
+
+  function close() {
+    if (!modal || !modal.classList.contains('open') || modal.classList.contains('closing')) return;
+    modal.classList.add('closing');
+    if (!document.querySelector('.modal.open:not(.closing)')) document.body.classList.remove('modal-open');
+    if (opener && opener.focus) opener.focus();
+    setTimeout(function () { if (modal.classList.contains('closing')) modal.classList.remove('open', 'closing'); }, 170);
+  }
+
+  document.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('#themeBtn')) open(); });
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && modal && modal.classList.contains('open') && !modal.classList.contains('closing')) {
+      e.preventDefault(); e.stopPropagation(); close();
+    }
+  }, true);
+
+  apply(current());
+  window.ClassynThemes = { apply: apply, open: open, current: current, palettes: PALETTES };
+})();
+</script>
+<script>
+/* Change password, right on the Profile page: type a new password twice and save. The person stays signed in. */
+(function () {
+  'use strict';
+  var card = document.getElementById('pwCard');
+  if (!card) return;
+  var $ = function (id) { return document.getElementById(id); };
+
+  var EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/></svg>';
+  var EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 4.3A10.8 10.8 0 0 1 12 4c6.5 0 10 6 10 6a18 18 0 0 1-3.1 3.7"/><path d="M6.6 6.6C3.7 8.4 2 12 2 12s3.5 6 10 6c1.4 0 2.7-.3 3.8-.8"/></svg>';
+  card.querySelectorAll('.pw-toggle').forEach(function (btn) {
+    btn.innerHTML = EYE;
+    btn.addEventListener('click', function () {
+      var input = $(btn.dataset.for), show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.innerHTML = show ? EYE_OFF : EYE;
+      btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    });
+  });
+
+  var timer = null;
+  function say(text, type) {
+    var m = $('pwMsg');
+    clearTimeout(timer);
+    if (!text) { m.hidden = true; m.textContent = ''; return; }
+    m.textContent = text; m.className = 'alert ' + (type || 'info'); m.hidden = false;
+    if (type === 'success') timer = setTimeout(function () { m.hidden = true; }, 9000);
+  }
+
+  function friendly(err) {
+    var m = String((err && err.message) || err || '');
+    if (/reauthentication|recent login|nonce/i.test(m)) return 'For your security, please log out, log in again, and then change your password.';
+    if (/same as the old|different from the old|should be different/i.test(m)) return 'Your new password must be different from your current one.';
+    if (/rate limit|too many|security purposes/i.test(m)) return 'Too many attempts. Please wait a minute and try again.';
+    if (/network|failed to fetch/i.test(m)) return 'Could not reach the server. Check your internet connection and try again.';
+    if (/session|jwt|not authenticated/i.test(m)) return 'Your session has expired. Please log in again.';
+    return m || 'Could not change the password. Please try again.';
+  }
+
+  var busy = false;
+  $('pwForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (busy) return;
+    say('');
+    var pw = $('pwNew').value, again = $('pwConfirm').value, db = window.__classynDb;
+    if (!db) { say('Could not reach the server. Reload the page and try again.', 'error'); return; }
+    if (pw.length < 8) { say('Your password must have at least 8 characters.', 'error'); $('pwNew').focus(); return; }
+    if (pw !== again) { say('The two passwords do not match.', 'error'); $('pwConfirm').focus(); return; }
+
+    var btn = $('pwSave'), label = btn.textContent;
+    busy = true; btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      var r = await db.auth.updateUser({ password: pw });
+      if (r.error) throw r.error;
+      $('pwForm').reset();
+      say('Password changed. Use your new password the next time you log in.', 'success');
+    } catch (err) {
+      console.error('Password change error:', err);
+      say(friendly(err), 'error');
+    }
+    busy = false; btn.disabled = false; btn.textContent = label;
+  });
+})();
+</script>
+<script>
+/* School calendar: shared by the admin, teacher and student pages.
+   Data lives in the existing `school_calendar` table (one row per day that is a leave, or a working Sunday).
+   Sundays are weekly leave automatically. Only admins can change days (the database enforces it too). */
+(function () {
+  'use strict';
+  if (window.ClassynCalendar) return;
+
+  var HOLIDAY = 'Holiday', RAIN = 'Rain holiday', LEAVE = 'Normal leave', WORK = 'School day';
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  var DOW = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+  var CLASSES = {}; CLASSES[HOLIDAY] = 'holiday'; CLASSES[RAIN] = 'rain'; CLASSES[LEAVE] = 'leave'; CLASSES[WORK] = 'work';
+
+  var opts = { canEdit: false }, db = null, started = false;
+  var byDate = new Map();            // 'YYYY-MM-DD' -> { status: {id,type,reason}|null, events: [] }
+  var views = [];
+
+  function $(id) { return document.getElementById(id); }
+  function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function iso(y, m, d) { return y + '-' + pad(m + 1) + '-' + pad(d); }
+  function isoOf(dt) { return iso(dt.getFullYear(), dt.getMonth(), dt.getDate()); }
+  function parse(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || ''); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; }
+  function todayISO() { return isoOf(new Date()); }
+  function isSunday(s) { var d = parse(s); return !!d && d.getDay() === 0; }
+  function nice(s, withWeekday) {
+    var d = parse(s); if (!d) return s;
+    return d.toLocaleDateString(undefined, withWeekday ? { weekday: 'long', day: 'numeric', month: 'long' } : { day: 'numeric', month: 'short' });
+  }
+  function say(msg, type) {
+    var t = $('toast'); if (!t) return;
+    t.textContent = msg; t.className = 'toast show ' + (type || 'info');
+    clearTimeout(say.t); say.t = setTimeout(function () { t.classList.remove('show'); }, type === 'error' ? 7000 : 3000);
+  }
+
+  function normType(t) {
+    var x = String(t || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (x === 'holiday') return HOLIDAY;
+    if (x === 'rain holiday' || x === 'rain') return RAIN;
+    if (x === 'normal leave' || x === 'leave') return LEAVE;
+    if (x === 'school day' || x === 'working day' || x === 'working sunday') return WORK;
+    return null;                                                    // some other kind of calendar entry (an event)
+  }
+
+  function rebuild(rows) {
+    byDate = new Map();
+    (rows || []).forEach(function (r) {
+      var k = String(r.calendar_date || '').slice(0, 10); if (!k) return;
+      if (!byDate.has(k)) byDate.set(k, { status: null, events: [] });
+      var e = byDate.get(k), type = normType(r.event_type);
+      if (type) e.status = { id: r.id, type: type, reason: r.title || '' };
+      else e.events.push({ title: r.title || 'Event', type: r.event_type || 'Event' });
+    });
+  }
+
+  /* What is this day? */
+  function statusOf(k) {
+    var e = byDate.get(k), s = e && e.status;
+    if (s && s.type === WORK) return { kind: 'work', type: WORK, reason: s.reason, id: s.id, events: e.events };
+    if (s) return { kind: 'leave', type: s.type, reason: s.reason, id: s.id, events: e.events };
+    if (isSunday(k)) return { kind: 'sunday', type: 'Sunday', reason: 'Weekly leave', events: e ? e.events : [] };
+    return { kind: 'school', type: WORK, reason: '', events: e ? e.events : [] };
+  }
+  var isLeaveDay = function (st) { return st.kind === 'leave' || st.kind === 'sunday'; };
+  function label(st) {
+    if (st.kind === 'sunday') return 'Sunday, weekly leave';
+    if (st.kind === 'school') return 'School day';
+    if (st.kind === 'work') return 'School day' + (st.reason ? ': ' + st.reason : '');
+    return st.type + (st.reason && st.reason !== st.type ? ': ' + st.reason : '');
+  }
+  function short(st) { return st.kind === 'sunday' ? 'Sunday' : st.kind === 'leave' ? (st.type === RAIN ? 'Rain' : st.type === HOLIDAY ? 'Holiday' : 'Leave') : st.kind === 'work' ? 'Working' : ''; }
+  function cls(st) { return st.kind === 'sunday' ? 'sunday' : (st.kind === 'leave' || st.kind === 'work') ? CLASSES[st.type] : ''; }
+
+  /* ---------- data ---------- */
+  async function load() {
+    db = window.__classynDb; if (!db) return false;
+    var r = await db.from('school_calendar').select('id,title,description,calendar_date,event_type').order('calendar_date', { ascending: true }).limit(2000);
+    if (r.error) { console.error('school_calendar:', r.error.message); views.forEach(function (v) { v.error = r.error.message; }); rebuild([]); renderAll(); return false; }
+    views.forEach(function (v) { v.error = null; });
+    rebuild(r.data || []); renderAll(); return true;
+  }
+
+  /* ---------- rendering ---------- */
+  function monthMatrix(y, m) {
+    var first = new Date(y, m, 1), lead = (first.getDay() + 6) % 7, start = new Date(y, m, 1 - lead), cells = [];
+    for (var i = 0; i < 42; i++) { var d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i); cells.push({ k: isoOf(d), day: d.getDate(), out: d.getMonth() !== m }); }
+    return cells;
+  }
+
+  function leaveListForMonth(y, m) {
+    var rows = [], last = new Date(y, m + 1, 0).getDate();
+    for (var d = 1; d <= last; d++) {
+      var k = iso(y, m, d), st = statusOf(k);
+      if ((st.kind === 'leave') || st.kind === 'work' || (st.events && st.events.length)) rows.push({ k: k, st: st });
+    }
+    return rows;
+  }
+
+  function renderView(v) {
+    if (!v.el) return;
+    var tk = todayISO(), cells = monthMatrix(v.y, v.m), compact = v.compact;
+    var html = '<div class="cal' + (compact ? ' compact' : '') + '">' +
+      '<div class="cal-head"><div class="cal-title">' + MONTHS[v.m] + ' ' + v.y + '</div>' +
+      '<div class="cal-nav"><button type="button" data-cal="prev" aria-label="Previous month">‹</button><button type="button" data-cal="today">Today</button><button type="button" data-cal="next" aria-label="Next month">›</button></div></div>';
+    if (v.error) html += '<p class="cal-empty">The calendar couldn’t be loaded: ' + esc(v.error) + '</p>';
+    html += '<div class="cal-grid">' + DOW.map(function (d) { return '<div class="cal-dow">' + d + '</div>'; }).join('') +
+      cells.map(function (c) {
+        var st = statusOf(c.k), tip = nice(c.k, true) + ': ' + label(st) + (st.events.length ? ' · ' + st.events.map(function (e) { return e.title; }).join(', ') : '');
+        return '<button type="button" class="cal-day ' + cls(st) + (c.out ? ' out' : '') + (c.k === tk ? ' today' : '') + (st.events.length ? ' has-event' : '') + '" data-date="' + c.k + '" title="' + esc(tip) + '" aria-label="' + esc(tip) + '">' +
+          '<span>' + c.day + '</span><small>' + esc(st.kind === 'leave' || st.kind === 'work' ? (st.reason || short(st)) : short(st)) + '</small></button>';
+      }).join('') + '</div>';
+
+    if (!compact) {
+      html += '<div class="cal-legend"><span><i></i>School day</span><span><i class="sunday"></i>Sunday</span><span><i class="holiday"></i>Holiday</span><span><i class="rain"></i>Rain holiday</span><span><i class="leave"></i>Normal leave</span><span><i class="work"></i>Working Sunday</span></div>';
+      html += '<div class="cal-detail" aria-live="polite">' + (v.detail || (opts.canEdit ? 'Click a day to mark it a school day or a leave.' : 'Tap a day to see what it is.')) + '</div>';
+      var list = leaveListForMonth(v.y, v.m);
+      html += '<div class="cal-list"><h4>This month</h4>' + (list.length ? list.map(function (r) {
+        var st = r.st, chips = st.kind === 'leave' || st.kind === 'work' ? '<span class="chip ' + CLASSES[st.type] + '">' + esc(st.kind === 'work' ? 'School day' : st.type) + '</span>' : '';
+        var ev = st.events.map(function (e) { return '<span class="chip">' + esc(e.title) + '</span>'; }).join(' ');
+        return '<div class="cal-row"><time>' + esc(nice(r.k)) + '</time>' + chips + '<span class="why">' + esc(st.reason && st.reason !== st.type ? st.reason : '') + '</span>' + ev + '</div>';
+      }).join('') : '<p class="cal-empty">No holidays or special days this month. Sundays are weekly leave.</p>') + '</div>';
+    } else {
+      var t = statusOf(tk);
+      html += '<p class="cal-today-line">Today, ' + esc(nice(tk, true)) + ': <b>' + esc(label(t)) + '</b></p>';
+    }
+    html += '</div>';
+    v.el.innerHTML = html;
+  }
+
+  function renderUpcoming() {
+    var box = $('calUpcoming'); if (!box) return;
+    var out = [], d = new Date();
+    for (var i = 0; i < 180 && out.length < 5; i++) {
+      var k = isoOf(new Date(d.getFullYear(), d.getMonth(), d.getDate() + i)), st = statusOf(k);
+      if (st.kind === 'leave' || (st.kind === 'work' && i >= 0)) out.push({ k: k, st: st });
+    }
+    box.innerHTML = out.length ? out.map(function (r) {
+      return '<div class="cal-row"><time>' + esc(nice(r.k)) + '</time><span class="chip ' + CLASSES[r.st.type] + '">' + esc(r.st.kind === 'work' ? 'School day' : r.st.type) + '</span><span class="why">' + esc(r.st.reason && r.st.reason !== r.st.type ? r.st.reason : '') + '</span></div>';
+    }).join('') : '<p class="cal-empty">No leave days are scheduled. Sundays are weekly leave.</p>';
+  }
+
+  function renderAll() { views.forEach(renderView); renderUpcoming(); }
+
+  function mount(el, compact) {
+    if (!el) return null;
+    var now = new Date(), v = { el: el, compact: compact, y: now.getFullYear(), m: now.getMonth(), detail: '', error: null };
+    views.push(v);
+    el.addEventListener('click', function (e) {
+      var nav = e.target.closest('[data-cal]');
+      if (nav) {
+        var a = nav.dataset.cal;
+        if (a === 'today') { var n = new Date(); v.y = n.getFullYear(); v.m = n.getMonth(); }
+        else { var d = new Date(v.y, v.m + (a === 'next' ? 1 : -1), 1); v.y = d.getFullYear(); v.m = d.getMonth(); }
+        renderView(v); return;
+      }
+      var day = e.target.closest('.cal-day'); if (!day) return;
+      var k = day.dataset.date;
+      if (compact) { var go = document.querySelector('.nav-btn[data-page="calendar"]'); if (go) go.click(); return; }
+      if (opts.canEdit && $('calDayModal')) { openEditor(k); return; }
+      var st = statusOf(k);
+      v.detail = '<b>' + esc(nice(k, true)) + '</b>: ' + esc(label(st)) + (st.events.length ? '. ' + esc(st.events.map(function (x) { return x.title; }).join(', ')) : '');
+      renderView(v);
+    });
+    renderView(v);
+    return v;
+  }
+
+  /* ---------- editing (admin) ---------- */
+  function listDates(from, to) {
+    var a = parse(from), b = parse(to || from), out = [];
+    if (!a || !b) return out;
+    if (b < a) { var t = a; a = b; b = t; }
+    for (var d = new Date(a); d <= b && out.length <= 366; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) out.push(isoOf(d));
+    return out;
+  }
+
+  function openEditor(k) {
+    var st = statusOf(k), m = $('calDayModal');
+    $('calDaySub').textContent = nice(k, true);
+    $('calStatus').value = st.kind === 'leave' ? st.type : (st.kind === 'sunday' ? HOLIDAY : WORK);
+    $('calReason').value = (st.kind === 'leave' || st.kind === 'work') && st.reason && st.reason !== st.type ? st.reason : '';
+    $('calFrom').value = k; $('calTo').value = k;
+    $('calHint').textContent = st.kind === 'sunday'
+      ? 'Sundays are weekly leave. Choose “School day” to make this Sunday a working day.'
+      : 'Pick a range to change several days at once. Sundays inside a range stay as weekly leave.';
+    syncStatus();
+    m.classList.remove('closing'); m.classList.add('open'); document.body.classList.add('modal-open');
+    var f = $('calStatus'); if (f && f.focus) f.focus();
+  }
+
+  function syncStatus() {
+    var leave = $('calStatus').value !== WORK;
+    $('calReasonLabel').textContent = leave ? 'Reason for the leave' : 'Note (optional)';
+    $('calReason').placeholder = leave ? 'e.g. Diwali, heavy rain, teachers\u2019 training day' : 'e.g. Working Sunday for the sports meet';
+  }
+
+  async function userId() { var s = await db.auth.getSession(); return s && s.data && s.data.session ? s.data.session.user.id : null; }
+
+  async function save(e) {
+    e.preventDefault();
+    var btn = $('calSave'); if (btn.disabled) return;
+    var status = $('calStatus').value, reason = $('calReason').value.trim().replace(/\s+/g, ' ');
+    var dates = listDates($('calFrom').value, $('calTo').value || $('calFrom').value);
+    if (!dates.length) { say('Choose the date.', 'error'); return; }
+    if (dates.length > 366) { say('Choose 366 days or fewer.', 'error'); return; }
+    var leave = status !== WORK, title = reason || (leave ? status : 'Working day');
+    var insertRows = [], updateIds = [], deleteIds = [], me = await userId();
+    dates.forEach(function (k) {
+      var sun = isSunday(k), cur = (byDate.get(k) || {}).status;
+      if (leave) {
+        if (sun && dates.length > 1) return;                        // a range keeps Sundays as weekly leave
+        if (cur) updateIds.push(cur.id); else insertRows.push({ calendar_date: k, event_type: status, title: title, description: null, created_by: me });
+      } else if (sun) {
+        if (cur) updateIds.push(cur.id); else insertRows.push({ calendar_date: k, event_type: WORK, title: title, description: null, created_by: me });
+      } else if (cur) deleteIds.push(cur.id);                       // back to a normal school day
+    });
+    var label0 = btn.textContent; btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      if (insertRows.length) {
+        var i = await db.from('school_calendar').insert(insertRows).select('id');
+        if (i.error) throw i.error; if ((i.data || []).length !== insertRows.length) throw new Error('The database refused to add some days. Only admins can change the calendar.');
+      }
+      if (updateIds.length) {
+        var u = await db.from('school_calendar').update({ event_type: leave ? status : WORK, title: title }).in('id', updateIds).select('id');
+        if (u.error) throw u.error; if ((u.data || []).length !== updateIds.length) throw new Error('The database refused to change some days. Only admins can change the calendar.');
+      }
+      if (deleteIds.length) {
+        var d = await db.from('school_calendar').delete().in('id', deleteIds).select('id');
+        if (d.error) throw d.error; if ((d.data || []).length !== deleteIds.length) throw new Error('The database refused to change some days. Only admins can change the calendar.');
+      }
+      await load();
+      var close = $('calDayModal').querySelector('[data-close]'); if (close) close.click();
+      var n = insertRows.length + updateIds.length + deleteIds.length;
+      say(!n ? 'Nothing to change.' : dates.length > 1 ? 'Calendar updated for ' + dates.length + ' days.' : nice(dates[0], true) + ' is now: ' + label(statusOf(dates[0])) + '.', 'success');
+    } catch (err) {
+      console.error('Calendar save failed:', err);
+      say('Could not save: ' + err.message, 'error');
+    }
+    btn.disabled = false; btn.textContent = label0;
+  }
+
+  /* ---------- start ---------- */
+  function start(o) {
+    opts = Object.assign({ canEdit: false }, o || {});
+    if (started) { load(); return; }
+    started = true;
+    mount($('calFull'), false);
+    mount($('calMini'), true);
+    var form = $('calDayForm');
+    if (form && opts.canEdit) {
+      form.addEventListener('submit', save);
+      $('calStatus').addEventListener('change', syncStatus);
+    }
+    load();
+    setInterval(renderAll, 60 * 60 * 1000);                          // rolls "today" over at midnight
+  }
+
+  window.ClassynCalendar = { start: start, reload: load, statusOf: statusOf, isLeaveDay: isLeaveDay };
+})();
+</script>
+<script>
+(function () {
+  'use strict';
+
+  /* ============================== CONFIG ============================== */
+  var SUPABASE_URL = 'https://prgnkdccxhhwyaotrcqf.supabase.co';
+  var SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_WsohCufpMh539Di000EW8Q_4XRRmcar'; // publishable key only, never a secret/service_role key
+  var LOGIN_PAGE = 'Login.html';
+  var PASSWORD_PAGE = 'change-password.html';
+  // Where other roles are sent if they open this page. Edit the Teacher filename to match yours.
+  var ROLE_HOME = { teacher: 'Teacher.html', developer: 'Developer.html', admin: 'admin.html', administrator: 'admin.html' };
+
+  var DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  var SLOTS = [
+    { n: 1, label: '1st', start: '09:00', end: '09:40' }, { n: 2, label: '2nd', start: '09:40', end: '10:10' },
+    { brk: true, label: 'Break', start: '10:10', end: '10:20' },
+    { n: 3, label: '3rd', start: '10:20', end: '11:00' }, { n: 4, label: '4th', start: '11:00', end: '11:40' }, { n: 5, label: '5th', start: '11:40', end: '12:30' },
+    { brk: true, label: 'Lunch', start: '12:30', end: '13:00' },
+    { n: 6, label: '6th', start: '13:00', end: '13:40' }, { n: 7, label: '7th', start: '13:40', end: '14:20' }, { n: 8, label: '8th', start: '14:20', end: '14:50' }
+  ];
+  var QUOTES = ['Small progress still counts.', 'Keep learning, keep building.', 'Learn it. Practice it. Own it.'];
+  var PAGES = ['home', 'assignments', 'notes', 'announcements', 'timetable', 'calendar', 'exams', 'results', 'myclasses', 'chat', 'profile', 'settings'];
+
+  /* ============================== HELPERS ============================== */
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  };
+
+  function fmtDate(v) {
+    if (!v) return '—';
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+    var d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(v);
+    return isNaN(d) ? '—' : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  var toastTimer;
+  function toast(msg, type) {
+    var t = $('toast');
+    t.textContent = msg;
+    t.className = 'toast show ' + (type || 'info');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, type === 'error' ? 7000 : 3000);
+  }
+
+  function showGate(msg, actions) {
+    $('gate').hidden = false;
+    $('app').hidden = true;
+    $('gateMsg').textContent = msg;
+    var box = $('gateActions');
+    box.innerHTML = '';
+    (actions || []).forEach(function (a) {
+      var b = document.createElement('button');
+      b.className = 'btn' + (a.primary ? ' btn-primary' : '');
+      b.textContent = a.label;
+      b.addEventListener('click', a.onClick);
+      box.appendChild(b);
+    });
+    box.hidden = !(actions && actions.length);
+  }
+
+  if (!window.supabase || !window.supabase.createClient) {
+    showGate('Classyn could not load its database library. Check your internet connection and reload the page.',
+      [{ label: 'Reload', primary: true, onClick: function () { location.reload(); } }]);
+    return;
+  }
+  var db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+  window.__classynDb = db;                       // used by the change-password card on the Profile page
+
+  /* ============================== MOTION HELPERS ============================== */
+  var REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  /* Replays the "rise in" animation on a page, then clears it so later re-renders stay still. */
+  function enter(el) {
+    if (!el || REDUCED) return;
+    el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter');
+    clearTimeout(el._enterTimer);
+    el._enterTimer = setTimeout(function () { el.classList.remove('enter'); }, 1200);
+  }
+
+  /* Fades the rows of a table body back in after its contents were swapped (e.g. another day). */
+  function swap(el) {
+    if (!el || REDUCED) return;
+    el.classList.remove('swap'); void el.offsetWidth; el.classList.add('swap');
+  }
+
+  /* Sets a stat number, counting up to it when it is a whole number or a percentage. */
+  function setStat(id, text) {
+    var el = $(id), m = /^(\d+)(%?)$/.exec(String(text));
+    cancelAnimationFrame(el._raf);
+    if (!m || REDUCED) { el.textContent = text; return; }
+    var to = +m[1], from = parseInt(el.textContent, 10);
+    if (isNaN(from) || from === to) { if (isNaN(from)) from = 0; else { el.textContent = text; return; } }
+    var t0 = performance.now(), dur = 700;
+    (function tick(now) {
+      var p = Math.min(1, ((now || t0) - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(from + (to - from) * e) + m[2];
+      if (p < 1) el._raf = requestAnimationFrame(tick);
+    })(t0);
+  }
+
+  /* ============================== THEME & SETTINGS ============================== */
+  function setTheme(v) {
+    v = v === 'dark' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', v);
+    try { localStorage.setItem('classyn-student-theme', v); } catch (e) {}
+    $('appearance').value = v;
+  }
+
+  /* ============================== NAVIGATION ============================== */
+  var currentPage = 'home';
+
+  function showPage(id, opts) {
+    if (PAGES.indexOf(id) < 0) id = 'home';
+    currentPage = id;
+    document.querySelectorAll('.page').forEach(function (p) { p.classList.toggle('active', p.id === id); });
+    enter($(id));
+    document.querySelectorAll('.nav-btn, .top-btn').forEach(function (b) {
+      var on = b.dataset.page === id;
+      b.classList.toggle('active', on && b.classList.contains('nav-btn'));
+      b.classList.toggle('top-active', on && b.classList.contains('top-btn'));
+      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
+    closeSidebar();
+    closePopover();
+    if (!opts || opts.push !== false) {
+      try { history.replaceState(null, '', '#' + id); } catch (e) {}
+    }
+    window.scrollTo(0, 0);
+  }
+
+  function openSidebar() { document.body.classList.add('nav-open'); $('menuBtn').setAttribute('aria-expanded', 'true'); }
+  function closeSidebar() { document.body.classList.remove('nav-open'); $('menuBtn').setAttribute('aria-expanded', 'false'); }
+  function closePopover() { $('notifications').hidden = true; $('bellBtn').setAttribute('aria-expanded', 'false'); }
+  function togglePopover() {
+    var p = $('notifications');
+    p.hidden = !p.hidden;
+    $('bellBtn').setAttribute('aria-expanded', String(!p.hidden));
+  }
+
+  /* ============================== DATA ============================== */
+  var state = { uid: '', exams: [], timetable: [], results: [], convs: [], msgs: [], contacts: [], activeConv: '', announcements: [], notifications: [], notes: [], teachers: new Map(), assignments: [], done: new Set(), subjects: new Map(), section: null, classTeacher: '', unread: 0, attendance: null };
+  var loaded = false;
+
+  async function loadData(user, profile) {
+    state.uid = user.id;
+    try {
+      var res = await Promise.all([
+        db.from('assignments').select('*').order('due_date', { ascending: true }),
+        db.from('messages').select('id', { count: 'exact', head: true }).eq('is_read', false).neq('sender_id', user.id),
+        db.from('attendance').select('status').eq('student_id', user.id),
+        db.from('assignment_completions').select('assignment_id').eq('student_id', user.id),
+        db.from('subjects').select('id,name'),
+        db.from('notes').select('id,title,teacher_id,subject_id,section_id,created_at').order('created_at', { ascending: false }),
+        profile && profile.section_id != null
+          ? db.from('sections').select('id,grade,section,class_code,class_teacher_id').eq('id', profile.section_id).maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
+        db.from('announcements').select('id,created_by,section_id,title,message,type,announcement_date,created_at').order('created_at', { ascending: false }),
+        db.from('notifications').select('id,title,message,notification_type,is_read,created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30)
+      ]);
+      var names = ['assignments', 'messages', 'attendance', 'assignment_completions', 'subjects', 'notes', 'sections', 'announcements', 'notifications'];
+      res.forEach(function (r, i) { if (r.error) console.error('Supabase ' + names[i] + ':', r.error.message); });
+
+      if (res[0].error) toast('Could not load assignments: ' + res[0].error.message, 'error');
+      state.assignments = res[0].data || [];
+      state.unread = res[1].count || 0;
+      var att = res[2].data || [];
+      state.attendance = att.length
+        ? Math.round(att.filter(function (r) { return String(r.status || '').toLowerCase() === 'present'; }).length / att.length * 100)
+        : null;
+      state.done = new Set((res[3].data || []).map(function (r) { return String(r.assignment_id); }));
+      state.subjects = new Map((res[4].data || []).map(function (s) { return [String(s.id), s.name]; }));
+      state.notes = res[5].data || [];
+      await attachPhotos();
+      state.section = res[6].data || null;
+      state.announcements = (res[7].data || []).slice().sort(function (a, b) { return String(b.created_at || '').localeCompare(String(a.created_at || '')); });
+      state.notifications = res[8].data || [];
+
+      var teacherIds = Array.from(new Set(state.notes.map(function (n) { return n.teacher_id; }).concat(state.announcements.map(function (a) { return a.created_by; })).filter(Boolean)));
+      if (teacherIds.length) {
+        var tn = await db.from('profiles').select('id,full_name').in('id', teacherIds);   // best effort: the note still shows without a name
+        (tn.data || []).forEach(function (t) { state.teachers.set(String(t.id), t.full_name); });
+      }
+
+      if (state.section && state.section.class_teacher_id != null) {
+        var t = await db.from('profiles').select('full_name').eq('id', state.section.class_teacher_id).maybeSingle();
+        state.classTeacher = (t.data && t.data.full_name) || '';
+      }
+    } catch (err) {
+      console.error('Student data loading error:', err);
+      toast('Could not load your data: ' + err.message, 'error');
+    }
+    await loadExtras(user, profile);
+    loaded = true;
+    renderAll();
+  }
+
+  /* ============================== TIMETABLE, RESULTS AND CHAT DATA ============================== */
+  async function loadExtras(user, profile) {
+    try {
+      var sec = profile && profile.section_id != null ? profile.section_id : null;
+      var none = Promise.resolve({ data: [], error: null });
+      var r = await Promise.all([
+        sec != null ? db.from('timetable').select('id,subject_id,teacher_id,day_of_week,period_number,start_time,end_time').eq('section_id', sec) : none,
+        db.from('results').select('id,subject_id,exam_name,marks,max_marks,grade,created_at').eq('student_id', user.id).order('created_at', { ascending: false }),
+        db.from('conversations').select('id,teacher_id,created_at').eq('student_id', user.id),
+        sec != null ? db.from('teacher_assignments').select('teacher_id,subject_id').eq('section_id', sec) : none,
+        sec != null ? db.from('exams').select('*').eq('section_id', sec) : none
+      ]);
+      ['timetable', 'results', 'conversations', 'teacher_assignments', 'exams'].forEach(function (n, i) {
+        if (r[i].error) console.error('Supabase ' + n + ':', r[i].error.message);
+      });
+      state.timetable = r[0].data || [];
+      state.results = r[1].data || [];
+      var convs = r[2].data || [], ta = r[3].data || [];
+      state.exams = r[4].data || [];
+
+      var msgs = [];
+      if (convs.length) {
+        var m = await db.from('messages').select('id,conversation_id,sender_id,message,is_read,created_at')
+          .in('conversation_id', convs.map(function (c) { return c.id; })).order('created_at', { ascending: true });
+        if (m.error) console.error('Supabase messages:', m.error.message); else msgs = m.data || [];
+      }
+      state.convs = convs; state.msgs = msgs;
+      if (!r[2].error) state.unread = msgs.filter(function (x) { return String(x.sender_id) !== String(user.id) && !x.is_read; }).length;
+
+      // teachers I may message: the ones assigned to my class, my class teacher, and anyone I already talk to
+      var subjectsOf = new Map();
+      ta.forEach(function (row) {
+        var k = String(row.teacher_id), sub = state.subjects.get(String(row.subject_id));
+        if (!subjectsOf.has(k)) subjectsOf.set(k, []);
+        if (sub && subjectsOf.get(k).indexOf(sub) < 0) subjectsOf.get(k).push(sub);
+      });
+      var classTeacher = state.section && state.section.class_teacher_id != null ? String(state.section.class_teacher_id) : '';
+      if (classTeacher && !subjectsOf.has(classTeacher)) subjectsOf.set(classTeacher, []);
+      convs.forEach(function (c) { if (!subjectsOf.has(String(c.teacher_id))) subjectsOf.set(String(c.teacher_id), []); });
+
+      var need = new Set();
+      state.timetable.forEach(function (x) { if (x.teacher_id) need.add(String(x.teacher_id)); });
+      subjectsOf.forEach(function (v, k) { need.add(k); });
+      var missing = Array.from(need).filter(function (id) { return !state.teachers.has(id); });
+      if (missing.length) {
+        var tn = await db.from('profiles').select('id,full_name').in('id', missing);          // best effort
+        (tn.data || []).forEach(function (t) { state.teachers.set(String(t.id), t.full_name); });
+      }
+      state.contacts = Array.from(subjectsOf).map(function (e) {
+        var name = state.teachers.get(e[0]);
+        var role = e[0] === classTeacher ? ['Class teacher'].concat(e[1]) : e[1];
+        return { id: e[0], name: name || 'Teacher', label: (name || 'Teacher') + (role.length ? ' · ' + role.join(', ') : '') };
+      }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+    } catch (err) {
+      console.error('Student extra data error:', err);
+    }
+  }
+
+  /* ============================== DIALOGS ============================== */
+  var lastFocus = null;
+  function openModal(id) {
+    lastFocus = document.activeElement;
+    var m = $(id);
+    m.classList.remove('closing');
+    m.classList.add('open');
+    document.body.classList.add('modal-open');
+    var f = m.querySelector('[data-autofocus]') || m.querySelector('select:not(:disabled), input:not(:disabled), textarea, button');
+    if (f) f.focus();
+  }
+  function closeModal(id) {
+    var m = $(id);
+    if (!m.classList.contains('open') || m.classList.contains('closing')) return;
+    m.classList.add('closing');
+    if (!document.querySelector('.modal.open:not(.closing)')) document.body.classList.remove('modal-open');
+    if (lastFocus && lastFocus.focus) lastFocus.focus();
+    setTimeout(function () { if (m.classList.contains('closing')) m.classList.remove('open', 'closing'); }, REDUCED ? 0 : 170);
+  }
+
+  /* Note photos live in the note_photos table; the files are in a private bucket, so each one gets a short-lived signed link. */
+  var PHOTO_BUCKET = 'note-photos';
+  var isHttp = function (v) { return /^https?:\/\//i.test(String(v || '')); };
+  function photoPath(ref) {
+    var v = String(ref || '');
+    if (!isHttp(v)) return v.replace(/^\/+/, '');
+    var m = v.match(new RegExp('/' + PHOTO_BUCKET + '/([^?]+)'));
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+  async function attachPhotos() {
+    state.notes.forEach(function (n) { n.photos = []; });
+    if (!state.notes.length) return;
+    var r = await db.from('note_photos').select('id,note_id,photo_url,photo_order').in('note_id', state.notes.map(function (n) { return n.id; })).order('photo_order', { ascending: true });
+    if (r.error) { console.error('Supabase note_photos:', r.error.message); return; }
+    var byNote = new Map(state.notes.map(function (n) { return [String(n.id), n]; }));
+    (r.data || []).forEach(function (p) { var n = byNote.get(String(p.note_id)); if (n) n.photos.push({ ref: p.photo_url, url: '' }); });
+    var all = state.notes.reduce(function (a, n) { return a.concat(n.photos); }, []);
+    var paths = Array.from(new Set(all.map(function (p) { return photoPath(p.ref); }).filter(Boolean)));
+    var links = new Map();
+    if (paths.length) {
+      try {
+        var s = await db.storage.from(PHOTO_BUCKET).createSignedUrls(paths, 3600);
+        if (s.error) throw s.error;
+        (s.data || []).forEach(function (d) { if (d.signedUrl) links.set(d.path, d.signedUrl); });
+      } catch (err) { console.error('Could not create photo links:', err); }
+    }
+    all.forEach(function (p) { var path = photoPath(p.ref); p.url = (path && links.get(path)) || (isHttp(p.ref) ? p.ref : ''); });
+  }
+
+  var secLabel = function (s) {
+    return s ? (s.class_code || (String(s.grade == null ? '' : s.grade) + String(s.section == null ? '' : s.section)) || 'Class') : '';
+  };
+
+  /* ============================== RENDER ============================== */
+  function isDone(a) { return state.done.has(String(a.id)); }
+  function isOverdue(a) {
+    if (!a.due_date || isDone(a)) return false;
+    var d = new Date(a.due_date);          // due_date is a full timestamp
+    return !isNaN(d) && d < new Date();
+  }
+
+  function renderStats() {
+    var n = state.assignments.length;
+    setStat('statAssignments', loaded ? n : '–');
+    setStat('statAttendance', state.attendance == null ? '–' : state.attendance + '%');
+    setStat('statUnread', loaded ? state.unread : '–');
+    var doneCount = state.assignments.filter(isDone).length;
+    setStat('statDone', loaded ? (n ? Math.round(doneCount / n * 100) + '%' : '0%') : '–');
+
+    var notify = $('notifyToggle').checked;
+    var unreadNotes = state.notifications.filter(function (n) { return !n.is_read; });
+    var total = state.unread + unreadNotes.length;
+    var badge = $('bellCount');
+    badge.textContent = total;
+    badge.hidden = !(total && notify);
+    $('notifyText').textContent = !notify ? 'Notifications are turned off in Settings.'
+      : total ? '' : 'No new notifications.';
+    $('notifyText').hidden = !!(notify && total);
+    $('notifyList').innerHTML = !notify ? '' :
+      (state.unread ? '<p class="notif-item"><b>' + state.unread + ' unread message' + (state.unread > 1 ? 's' : '') + '</b></p>' : '') +
+      unreadNotes.slice(0, 5).map(function (n) {
+        return '<p class="notif-item"><b>' + esc(n.title || 'Notification') + '</b><br>' + esc(n.message || '') + '</p>';
+      }).join('');
+    $('markNotifRead').hidden = !(notify && unreadNotes.length);
+  }
+
+  function renderAssignments() {
+    var rows = state.assignments.map(function (a) {
+      var done = isDone(a);
+      var status = done ? '<span class="chip ok">Done</span>' : isOverdue(a) ? '<span class="chip danger">Overdue</span>' : '<span class="chip">Pending</span>';
+      var sub = state.subjects.get(String(a.subject_id));
+      return '<tr class="row"><td>' + esc(a.title || '—') + '</td><td>' + esc(sub || '—') + '</td><td>' + esc(fmtDate(a.due_date)) + '</td><td>' + status + '</td>' +
+        '<td><button class="btn btn-sm" data-toggle-done="' + esc(a.id) + '">' + (done ? 'Undo' : 'Mark done') + '</button></td></tr>';
+    });
+    $('assignmentTable').innerHTML = rows.join('') ||
+      '<tr><td colspan="5" class="state">' + (loaded ? 'No assignments yet.' : 'Loading…') + '</td></tr>';
+    applyFilters();
+  }
+
+  async function toggleDone(id) {
+    var a = state.assignments.filter(function (x) { return String(x.id) === String(id); })[0];
+    if (!a || busy) return;
+    var wasDone = isDone(a);
+    busy = true;
+    try {
+      var r = wasDone
+        ? await db.from('assignment_completions').delete().eq('assignment_id', a.id).eq('student_id', state.uid).select('assignment_id')
+        : await db.from('assignment_completions').insert({ assignment_id: a.id, student_id: state.uid, completed_at: new Date().toISOString() }).select('assignment_id');
+      if (r.error) throw r.error;
+      if (!(r.data || []).length) throw new Error('The database refused this. A permission is probably missing.');
+      if (wasDone) state.done.delete(String(a.id)); else state.done.add(String(a.id));
+      renderAssignments(); renderStats();
+      toast(wasDone ? 'Marked as not done.' : 'Nice! Marked as done.', 'success');
+    } catch (err) {
+      console.error(err);
+      toast('Could not update: ' + err.message, 'error');
+    }
+    busy = false;
+  }
+  var busy = false;
+
+  /* Timetable: rows come from the database (one row per class, day and period). */
+  var dayKey = function (d) { return String(d || '').slice(0, 3).toLowerCase(); };
+  var hhmm = function (t) { return String(t || '').slice(0, 5); };
+  var t12 = function (t) { var p = hhmm(t).split(':'); return ((+p[0] % 12) || 12) + ':' + p[1]; };
+
+  function periodRows(day) {
+    var rows = state.timetable.filter(function (r) { return dayKey(r.day_of_week) === dayKey(day); });
+    return SLOTS.map(function (sl) {
+      if (sl.brk) return '<tr class="break-row"><td>' + sl.label + '</td><td>' + t12(sl.start) + '–' + t12(sl.end) + '</td><td>Break</td><td>—</td></tr>';
+      var r = rows.filter(function (x) { return Number(x.period_number) === sl.n; })[0];
+      var time = r && r.start_time ? t12(r.start_time) + '–' + t12(r.end_time) : t12(sl.start) + '–' + t12(sl.end);
+      var sub = r ? (state.subjects.get(String(r.subject_id)) || '—') : 'Not set';
+      var teacher = r ? (state.teachers.get(String(r.teacher_id)) || '—') : '—';
+      return '<tr><td>' + sl.label + '</td><td>' + time + '</td><td>' + esc(sub) + '</td><td>' + esc(teacher) + '</td></tr>';
+    }).join('');
+  }
+
+  var activeDay = 'Monday';
+  function renderTimetable() {
+    $('days').innerHTML = DAYS.map(function (d) {
+      return '<button type="button" class="day-tab' + (d === activeDay ? ' active' : '') + '" data-day="' + d + '" aria-pressed="' + (d === activeDay) + '">' + d + '</button>';
+    }).join('');
+    $('timeTable').innerHTML = periodRows(activeDay);
+    $('ttNote').hidden = !loaded || state.timetable.length > 0;
+  }
+
+  function renderToday() {
+    var today = DAYS[(new Date().getDay() + 6) % 7];
+    $('todayTitle').textContent = today ? 'Today’s timetable' : 'Timetable';
+    $('todayTable').innerHTML = today ? periodRows(today) : '<tr><td colspan="4" class="state">No school today. Enjoy your Sunday!</td></tr>';
+  }
+
+  /* Exams: named periods (Monthly Test, Mid Term…) with a start and end date */
+  var examEnd = function (x) { return x.end_date || x.exam_date; };
+  var dayNum = function (iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 864e5 : NaN; };
+  var todayNum = function () { var d = new Date(); return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 864e5; };
+
+  function renderExams() {
+    var today = todayNum();
+    var list = state.exams.slice().sort(function (a, b) {
+      var ua = dayNum(examEnd(a)) >= today, ub = dayNum(examEnd(b)) >= today;
+      if (ua !== ub) return ua ? -1 : 1;
+      return ua ? String(a.exam_date).localeCompare(String(b.exam_date)) : String(b.exam_date).localeCompare(String(a.exam_date));
+    });
+    $('examTable').innerHTML = list.map(function (x) {
+      var start = dayNum(x.exam_date), end = dayNum(examEnd(x)), chip;
+      if (end < today) chip = '<span class="chip muted">Completed</span>';
+      else if (start > today) { var n = Math.round(start - today); chip = '<span class="chip">Starts ' + (n === 1 ? 'tomorrow' : 'in ' + n + ' days') + '</span>'; }
+      else chip = '<span class="chip ok">Ongoing</span>';
+      return '<tr class="row"><td>' + esc(x.exam_name || '—') + '</td><td>' + esc(fmtDate(x.exam_date)) + '</td><td>' + esc(fmtDate(examEnd(x))) + '</td><td>' + chip + '</td></tr>';
+    }).join('') || '<tr><td colspan="4" class="state">' + (loaded ? 'No exams have been scheduled for your class yet.' : 'Loading…') + '</td></tr>';
+  }
+
+  /* Results */
+  var pctOf = function (m, x) { return Number(x) > 0 ? Math.round(Number(m) / Number(x) * 100) : null; };
+  function renderResults() {
+    var rows = state.results;
+    var pcts = rows.map(function (r) { return pctOf(r.marks, r.max_marks); }).filter(function (p) { return p !== null; });
+    var avg = pcts.length ? Math.round(pcts.reduce(function (a, b) { return a + b; }, 0) / pcts.length) : null;
+    var best = pcts.length ? Math.max.apply(null, pcts) : null;
+    var stat = function (l, v) { return '<div class="card stat"><p>' + l + '</p><div class="value">' + v + '</div></div>'; };
+    $('resultStats').innerHTML = loaded && rows.length ? stat('Results', rows.length) + stat('Average', avg === null ? '–' : avg + '%') + stat('Best result', best === null ? '–' : best + '%') : '';
+    $('resultTable').innerHTML = rows.map(function (r) {
+      var p = pctOf(r.marks, r.max_marks);
+      return '<tr class="row"><td>' + esc(r.exam_name || '—') + '</td><td>' + esc(state.subjects.get(String(r.subject_id)) || '—') + '</td>' +
+        '<td>' + esc(r.marks) + ' / ' + esc(r.max_marks) + '</td><td>' + (p === null ? '—' : p + '%') + '</td><td>' + esc(r.grade || '—') + '</td></tr>';
+    }).join('') || '<tr><td colspan="5" class="state">' + (loaded ? 'No results have been published yet.' : 'Loading…') + '</td></tr>';
+  }
+
+  /* Chat */
+  function ago(iso) {
+    if (!iso) return '';
+    var sec = Math.max(0, (Date.now() - new Date(iso)) / 1000);
+    if (isNaN(sec)) return '';
+    if (sec < 60) return 'Just now';
+    if (sec < 3600) return Math.floor(sec / 60) + ' min ago';
+    if (sec < 86400) return Math.floor(sec / 3600) + ' h ago';
+    if (sec < 604800) return Math.floor(sec / 86400) + ' d ago';
+    return fmtDate(String(iso).slice(0, 10));
+  }
+  var isMine = function (m) { return String(m.sender_id) === String(state.uid); };
+  var convMsgs = function (c) { return state.msgs.filter(function (m) { return String(m.conversation_id) === String(c.id); }); };
+
+  function renderChat() {
+    var list = state.convs.map(function (c) {
+      var ms = convMsgs(c);
+      return { c: c, last: ms[ms.length - 1], unread: ms.filter(function (m) { return !isMine(m) && !m.is_read; }).length };
+    }).sort(function (a, b) {
+      return String((b.last && b.last.created_at) || b.c.created_at || '').localeCompare(String((a.last && a.last.created_at) || a.c.created_at || ''));
+    });
+    $('convList').innerHTML = list.length ? list.map(function (x) {
+      return '<button type="button" class="conv' + (String(x.c.id) === state.activeConv ? ' active' : '') + '" data-conv="' + esc(x.c.id) + '">' +
+        '<span class="conv-name">' + esc(state.teachers.get(String(x.c.teacher_id)) || 'Teacher') + '</span>' +
+        (x.unread ? '<span class="bell-count static">' + x.unread + '</span>' : '<span></span>') +
+        '<span class="conv-last">' + esc(x.last ? x.last.message : 'No messages yet') + '</span></button>';
+    }).join('') : '<p class="empty" style="padding:16px">' + (loaded ? 'No conversations yet. Use “New message” to ask a teacher.' : 'Loading…') + '</p>';
+    renderThread();
+  }
+
+  function renderThread() {
+    var c = state.convs.filter(function (x) { return String(x.id) === state.activeConv; })[0];
+    $('replyForm').hidden = !c;
+    if (!c) { $('threadHead').textContent = 'Select a conversation'; $('threadBody').innerHTML = '<p class="empty">Choose a conversation on the left.</p>'; return; }
+    $('threadHead').textContent = state.teachers.get(String(c.teacher_id)) || 'Teacher';
+    var ms = convMsgs(c);
+    $('threadBody').innerHTML = ms.length ? ms.map(function (m) {
+      return '<div class="msg ' + (isMine(m) ? 'me' : 'them') + '"><p>' + esc(m.message) + '</p><small>' + esc(ago(m.created_at)) + '</small></div>';
+    }).join('') : '<p class="empty">No messages yet.</p>';
+    $('threadBody').scrollTop = $('threadBody').scrollHeight;
+  }
+
+  async function openConversation(id) {
+    state.activeConv = String(id);
+    renderChat();
+    var unread = convMsgs({ id: id }).filter(function (m) { return !isMine(m) && !m.is_read; });
+    if (!unread.length) return;
+    var r = await db.from('messages').update({ is_read: true }).in('id', unread.map(function (m) { return m.id; }));
+    if (r.error) { console.error('Could not mark messages read:', r.error.message); return; }
+    unread.forEach(function (m) { m.is_read = true; });
+    state.unread = state.msgs.filter(function (m) { return !isMine(m) && !m.is_read; }).length;
+    renderChat(); renderStats();
+  }
+
+  async function sendMessage(convId, text) {
+    var r = await db.from('messages').insert({ conversation_id: convId, sender_id: state.uid, message: text, is_read: false })
+      .select('id,conversation_id,sender_id,message,is_read,created_at').single();
+    if (r.error) throw r.error;
+    state.msgs.push(r.data);
+  }
+
+  async function startChat(teacherId, text) {
+    var conv = state.convs.filter(function (c) { return String(c.teacher_id) === String(teacherId); })[0];
+    if (!conv) {
+      var r = await db.from('conversations').insert({ created_by: state.uid, student_id: state.uid, teacher_id: teacherId })
+        .select('id,teacher_id,created_at').single();
+      if (r.error) throw r.error;
+      conv = r.data; state.convs.unshift(conv);
+      // some parts of the app list conversations through the members table, so add both people (best effort)
+      db.from('conversation_members').insert([{ conversation_id: conv.id, user_id: state.uid }, { conversation_id: conv.id, user_id: teacherId }]).then(function () {}, function () {});
+    }
+    await sendMessage(conv.id, text);
+    state.activeConv = String(conv.id);
+  }
+
+  function renderClass() {
+    var s = state.section;
+    if (!s) {
+      $('classGrid').innerHTML = '<div class="card empty">' + (loaded ? 'No class has been assigned to your account yet.' : 'Loading…') + '</div>';
+      return;
+    }
+    $('classGrid').innerHTML = '<article class="card class-card"><div class="class-top"><h3>' + esc(secLabel(s)) + '</h3>' +
+      '<span class="chip">Grade ' + esc(s.grade == null ? '—' : s.grade) + '</span></div>' +
+      '<dl><div><dt>Section</dt><dd>' + esc(s.section == null || s.section === '' ? '—' : s.section) + '</dd></div>' +
+      '<div><dt>Class teacher</dt><dd>' + esc(state.classTeacher || 'Not assigned') + '</dd></div></dl></article>';
+  }
+
+  function renderNotes() {
+    var q = ($('noteSearch').value || '').trim().toLowerCase();
+    var list = state.notes.filter(function (n) {
+      var text = (n.title || '') + ' ' + (state.subjects.get(String(n.subject_id)) || '');
+      return !q || text.toLowerCase().indexOf(q) >= 0;
+    });
+    if (!list.length) {
+      $('noteGrid').innerHTML = '<p class="empty">' + (!loaded ? 'Loading…' : state.notes.length ? 'No matches.' : 'No notes have been shared with your class yet.') + '</p>';
+      return;
+    }
+    $('noteGrid').innerHTML = list.map(function (n) {
+      var photos = (n.photos || []).map(function (p) { return p.url; }).filter(Boolean);
+      var sub = state.subjects.get(String(n.subject_id));
+      var by = state.teachers.get(String(n.teacher_id));
+      return '<article class="card note-card"><div class="class-top"><h3>' + esc(n.title || 'Untitled') + '</h3>' +
+        (sub ? '<span class="chip">' + esc(sub) + '</span>' : '') + '</div>' +
+        '<p class="muted small">' + esc([by, fmtDate(n.created_at && String(n.created_at).slice(0, 10))].filter(Boolean).join(' · ')) + '</p>' +
+        '<div class="thumbs">' + photos.map(function (u, i) {
+          return '<a href="' + esc(u) + '" target="_blank" rel="noopener" aria-label="Open page ' + (i + 1) + ' of ' + esc(n.title || 'note') + '">' +
+            '<img src="' + esc(u) + '" alt="Page ' + (i + 1) + '" loading="lazy"></a>';
+        }).join('') + '</div></article>';
+    }).join('');
+  }
+
+  function renderNotices() {
+    var q = ($('noticeSearch').value || '').trim().toLowerCase();
+    var mine = state.section ? String(state.section.id) : null;
+    var list = state.announcements.filter(function (a) {
+      var text = (a.title || '') + ' ' + (a.message || '') + ' ' + (a.type || '');
+      return !q || text.toLowerCase().indexOf(q) >= 0;
+    });
+    if (!list.length) {
+      $('noticeList').innerHTML = '<p class="empty">' + (!loaded ? 'Loading…' : state.announcements.length ? 'No matches.' : 'No announcements yet.') + '</p>';
+      return;
+    }
+    $('noticeList').innerHTML = list.map(function (a) {
+      var aud = a.section_id == null ? 'Whole school' : (String(a.section_id) === mine ? (secLabel(state.section) || 'Your class') : 'Class');
+      var when = a.announcement_date ? fmtDate(a.announcement_date) : fmtDate(a.created_at);
+      var by = state.teachers.get(String(a.created_by));
+      return '<article class="notice"><div class="notice-top"><span class="chip">' + esc(a.type || 'Notice') + '</span>' +
+        '<span class="chip">' + esc(aud) + '</span>' +
+        '<span class="muted">' + esc(when) + (by ? ' · ' + esc(by) : '') + '</span></div>' +
+        '<h3>' + esc(a.title || 'Untitled') + '</h3><p>' + esc(a.message || '') + '</p></article>';
+    }).join('');
+  }
+
+  async function markNotificationsRead() {
+    var ids = state.notifications.filter(function (n) { return !n.is_read; }).map(function (n) { return n.id; });
+    if (!ids.length) return;
+    var r = await db.from('notifications').update({ is_read: true }).in('id', ids);
+    if (r.error) { toast('Could not update notifications: ' + r.error.message, 'error'); return; }
+    state.notifications.forEach(function (n) { n.is_read = true; });
+    renderStats();
+  }
+
+  function renderAll() {
+    renderStats();
+    renderResults();
+    renderExams();
+    renderChat();
+    renderTimetable();
+    renderToday();
+    renderNotices();
+    renderAssignments();
+    renderNotes();
+    renderClass();
+    if (state.profile) $('profileClass').textContent = secLabel(state.section) ? 'Class ' + secLabel(state.section) : 'Student';
+  }
+
+  /* ============================== SEARCH ============================== */
+  function applyFilters() {
+    var q = ($('assignmentSearch').value || '').trim().toLowerCase();
+    var tb = $('assignmentTable');
+    var rows = Array.from(tb.querySelectorAll('tr.row'));
+    var shown = 0;
+    rows.forEach(function (r) {
+      var ok = !q || r.textContent.toLowerCase().indexOf(q) >= 0;
+      r.hidden = !ok;
+      if (ok) shown++;
+    });
+    var old = tb.querySelector('tr.nomatch');
+    if (old) old.remove();
+    if (rows.length && !shown) tb.insertAdjacentHTML('beforeend', '<tr class="nomatch"><td colspan="5" class="state">No matches.</td></tr>');
+    return shown;
+  }
+
+  function globalSearch() {
+    var q = $('globalSearch').value;
+    $('assignmentSearch').value = q;
+    var shown = applyFilters();
+    if (q.trim() && shown > 0 && currentPage !== 'assignments') showPage('assignments');
+  }
+
+  /* ============================== WIRING ============================== */
+  function wire() {
+    document.querySelectorAll('[data-page]').forEach(function (b) {
+      b.addEventListener('click', function () { showPage(b.dataset.page); });
+    });
+    document.addEventListener('click', function (e) { if (!e.target.closest('.pop-wrap')) closePopover(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      var open = document.querySelector('.modal.open:not(.closing)');
+      if (open) closeModal(open.id); else { closePopover(); closeSidebar(); }
+    });
+    document.addEventListener('click', function (e) {
+      var c = e.target.closest('[data-close]');
+      if (c) closeModal(c.dataset.close);
+    });
+    document.querySelectorAll('.modal').forEach(function (m) {
+      m.addEventListener('mousedown', function (e) { if (e.target === m) closeModal(m.id); });
+    });
+    window.addEventListener('hashchange', function () { showPage(location.hash.slice(1), { push: false }); });
+
+    $('menuBtn').addEventListener('click', function () { document.body.classList.contains('nav-open') ? closeSidebar() : openSidebar(); });
+    $('scrim').addEventListener('click', closeSidebar);
+    $('bellBtn').addEventListener('click', togglePopover);
+
+    $('globalSearch').addEventListener('input', globalSearch);
+    $('assignmentSearch').addEventListener('input', function () { $('globalSearch').value = this.value; applyFilters(); });
+    $('noteSearch').addEventListener('input', renderNotes);
+    $('assignmentTable').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-toggle-done]');
+      if (b) toggleDone(b.dataset.toggleDone);
+    });
+    $('convList').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-conv]');
+      if (b) openConversation(b.dataset.conv);
+    });
+    $('replyForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var input = $('replyText'), text = input.value.trim();
+      var c = state.convs.filter(function (x) { return String(x.id) === state.activeConv; })[0];
+      if (!text || !c) return;
+      var btn = this.querySelector('button'); btn.disabled = true;
+      try { await sendMessage(c.id, text); input.value = ''; renderChat(); }
+      catch (err) { toast('Could not send: ' + err.message, 'error'); }
+      btn.disabled = false; input.focus();
+    });
+    $('newChatBtn').addEventListener('click', function () {
+      if (!state.contacts.length) { toast(loaded ? 'No teachers are assigned to your class yet.' : 'Still loading…', 'error'); return; }
+      $('chatTeacher').innerHTML = state.contacts.map(function (c) { return '<option value="' + esc(c.id) + '">' + esc(c.label) + '</option>'; }).join('');
+      openModal('newChatModal');
+    });
+    $('newChatForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var text = $('chatMessage').value.trim();
+      if (!text) return;
+      var btn = $('newChatSend'), label = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Sending…';
+      try {
+        await startChat($('chatTeacher').value, text);
+        this.reset(); closeModal('newChatModal'); renderChat(); showPage('chat');
+        toast('Message sent.', 'success');
+      } catch (err) {
+        console.error(err);
+        toast('Could not send: ' + err.message, 'error');
+      }
+      btn.disabled = false; btn.textContent = label;
+    });
+    $('noticeSearch').addEventListener('input', renderNotices);
+    $('markNotifRead').addEventListener('click', markNotificationsRead);
+    $('days').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-day]');
+      if (b) { activeDay = b.dataset.day; renderTimetable(); swap($('timeTable')); }
+    });
+
+    $('appearance').addEventListener('change', function () { setTheme(this.value); });
+    $('notifyToggle').addEventListener('change', function () {
+      try { localStorage.setItem('classyn-student-notify', this.checked ? 'on' : 'off'); } catch (e) {}
+      renderStats();
+    });
+    $('noticeToggle').addEventListener('change', function () {
+      try { localStorage.setItem('classyn-student-notices', this.checked ? 'on' : 'off'); } catch (e) {}
+    });
+    $('signOutBtn').addEventListener('click', function () {
+      db.auth.signOut().catch(function () {}).then(function () { location.href = LOGIN_PAGE; });
+    });
+
+    db.auth.onAuthStateChange(function (event) { if (event === 'SIGNED_OUT') location.replace(LOGIN_PAGE); });
+  }
+
+  /* ============================== START ============================== */
+  async function init() {
+    wire();
+    $('appearance').value = document.documentElement.getAttribute('data-theme') || 'light';
+    try {
+      $('notifyToggle').checked = localStorage.getItem('classyn-student-notify') !== 'off';
+      $('noticeToggle').checked = localStorage.getItem('classyn-student-notices') !== 'off';
+    } catch (e) {}
+    renderTimetable();
+    renderToday();
+    $('quote').textContent = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+
+    var user = null, profile = null;
+    try {
+      var u = await db.auth.getUser();
+      user = u && u.data ? u.data.user : null;
+      if (user) {
+        var p = await db.from('profiles').select('*').eq('id', user.id).maybeSingle();
+        if (p.error) throw p.error;
+        profile = p.data;
+      }
+    } catch (err) {
+      console.error(err);
+      showGate('Could not check your account: ' + (err.message || 'unknown error'), [
+        { label: 'Try again', primary: true, onClick: function () { location.reload(); } },
+        { label: 'Sign in again', onClick: function () { location.href = LOGIN_PAGE; } }
+      ]);
+      return;
+    }
+
+    if (!user) { location.replace(LOGIN_PAGE); return; }
+    if (!profile) {
+      showGate('Your profile isn’t set up yet. Contact your school admin.', [
+        { label: 'Sign out', primary: true, onClick: function () { db.auth.signOut().catch(function () {}).then(function () { location.href = LOGIN_PAGE; }); } }
+      ]);
+      return;
+    }
+
+    var role = String(profile.role || '').toLowerCase();
+    if (role !== 'student') { location.replace(ROLE_HOME[role] || LOGIN_PAGE); return; }
+    state.profile = profile;
+
+    var name = profile.full_name || 'Student';
+    var h = new Date().getHours();
+    $('welcomeTitle').textContent = (h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening') + ', ' + name.split(' ')[0];
+    $('studentName').textContent = name;
+    $('profileName').textContent = name;
+    $('profileEmail').textContent = profile.email || user.email || '';
+    $('avatar').textContent = name.trim().charAt(0).toUpperCase() || 'S';
+
+    $('gate').hidden = true;
+    $('app').hidden = false;
+    showPage(location.hash.slice(1), { push: false });
+    if (window.ClassynCalendar) window.ClassynCalendar.start({ canEdit: false });
+    if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+    loadData(user, profile);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

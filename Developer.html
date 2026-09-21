@@ -1,0 +1,1802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Developer | Classyn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+/* Apply the saved theme before first paint so the page never flashes the wrong one. */
+(function () {
+  var t = null;
+  try { t = localStorage.getItem('classyn-dev-theme'); } catch (e) {}
+  if (!t && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) t = 'dark';
+  document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
+})();
+</script>
+<script>try{var p=localStorage.getItem('classyn-palette');if(p)document.documentElement.setAttribute('data-palette',p)}catch(e){}</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+/* ============================== TOKENS ============================== */
+:root {
+  --bg: #f6f6f6;
+  --card: #ffffff;
+  --input: #f1f1f1;
+  --border: #dedede;
+  --text: #171717;
+  --muted: #6b6b6b;
+  --accent: #ff7800;          /* brand orange: decoration, focus rings, selected borders */
+  --accent-strong: #c25100;   /* filled buttons: white text passes 4.5:1 on this */
+  --accent-strong-hover: #a34500;
+  --accent-text: #b34700;     /* orange text on tinted backgrounds */
+  --accent-tint: #fff1e6;
+  --danger: #c62828;
+  --danger-tint: #fdecec;
+  --success: #16834b;
+  --warn-tint: #fff6db;
+  --warn-text: #7a5200;
+  --shadow: 0 8px 30px rgba(0, 0, 0, .06);
+  --radius: 14px;
+  --sidebar-w: 250px;
+  color-scheme: light;
+}
+[data-theme="dark"] {
+  --bg: #111111;
+  --card: #181818;
+  --input: #222222;
+  --border: #303030;
+  --text: #f2f2f2;
+  --muted: #a3a3a3;
+  --accent-strong: #d45a00;
+  --accent-strong-hover: #e86400;
+  --accent-text: #ff9a3d;
+  --accent-tint: #2b1b0e;
+  --danger: #ff7b72;
+  --danger-tint: #2d1614;
+  --warn-tint: #2b2410;
+  --warn-text: #f0c060;
+  --shadow: 0 8px 30px rgba(0, 0, 0, .28);
+  color-scheme: dark;
+}
+
+/* ============================== BASE ============================== */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+body.modal-open { overflow: hidden; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .55; }
+:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+[data-theme="dark"] :focus-visible { outline-color: var(--accent); }
+[hidden] { display: none !important; }
+h1, h2, h3, h4 { line-height: 1.25; }
+.muted { color: var(--muted); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ============================== ACCESS GATE ============================== */
+.gate { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; padding: 24px; background: var(--bg); }
+.gate-card { width: min(420px, 100%); text-align: center; background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 32px 26px; box-shadow: var(--shadow); }
+.gate-card h1 { font-size: 26px; letter-spacing: -.7px; margin-bottom: 10px; }
+.gate-card p { color: var(--muted); font-size: 14px; }
+.gate-actions { display: flex; gap: 10px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
+
+/* ============================== LAYOUT ============================== */
+.app { min-height: 100vh; }
+.sidebar {
+  position: fixed; inset: 0 auto 0 0; width: var(--sidebar-w); z-index: 100;
+  background: var(--card); border-right: 1px solid var(--border);
+  padding: 22px 14px; overflow-y: auto;
+}
+.brand { font-size: 24px; font-weight: 800; letter-spacing: -.7px; padding: 4px 12px 0; }
+.workspace { color: var(--muted); font-size: 12px; padding: 4px 12px 18px; }
+.sidebar nav { display: flex; flex-direction: column; gap: 3px; }
+.nav-btn {
+  width: 100%; display: flex; align-items: center; gap: 10px; text-align: left;
+  padding: 11px 13px; border: 0; border-radius: 10px; background: transparent;
+  color: var(--muted); font-size: 14px; transition: background .15s, color .15s;
+}
+.nav-btn:hover { background: var(--input); color: var(--text); }
+.nav-btn.active { background: var(--accent-tint); color: var(--accent-text); font-weight: 700; }
+.nav-btn svg { width: 17px; height: 17px; flex: none; }
+.scrim { position: fixed; inset: 0; z-index: 90; background: rgba(0, 0, 0, .45); display: none; }
+
+.main { margin-left: var(--sidebar-w); min-width: 0; }
+.topbar {
+  position: sticky; top: 0; z-index: 80; min-height: 68px;
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: env(safe-area-inset-top) max(24px, env(safe-area-inset-right)) 0 max(24px, env(safe-area-inset-left));
+  background: var(--card); border-bottom: 1px solid var(--border);
+}
+.icon-btn.menu-btn { display: none; }
+.topnav { display: flex; align-items: center; gap: 6px; }
+.top-btn { border: 0; background: transparent; color: var(--muted); padding: 9px 14px; border-radius: 10px; font-weight: 600; transition: background .15s, color .15s; }
+.top-btn:hover { background: var(--input); color: var(--text); }
+.top-btn.top-active { background: var(--accent-tint); color: var(--accent-text); }
+.top-actions { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; justify-content: flex-end; }
+.top-actions .search { width: min(280px, 100%); }
+
+.content { padding: 28px max(24px, env(safe-area-inset-right)) 40px max(24px, env(safe-area-inset-left)); max-width: 1500px; margin: 0 auto; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* ============================== CONTROLS ============================== */
+.field, .search {
+  width: 100%; min-height: 42px; padding: 9px 12px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--input); color: var(--text);
+}
+.field:focus, .search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .18); }
+.field:disabled { opacity: .75; cursor: not-allowed; }
+select.field { cursor: pointer; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 40px; padding: 0 16px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--card); color: var(--text); font-weight: 600; font-size: 14px;
+  transition: border-color .15s, background .15s;
+}
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn-primary { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-strong-hover); border-color: var(--accent-strong-hover); }
+.btn-sm { min-height: 34px; padding: 0 12px; font-size: 13px; }
+.link-btn { border: 0; background: transparent; color: var(--accent-text); font-size: 13px; font-weight: 600; padding: 4px 2px; }
+.link-btn:hover { text-decoration: underline; }
+.icon-btn {
+  width: 42px; height: 42px; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--text); font-size: 20px; line-height: 1;
+}
+.icon-btn:hover { border-color: var(--accent); background: var(--input); }
+.icon-btn svg { width: 18px; height: 18px; }
+
+.profile-btn {
+  display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 4px 12px 4px 5px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--card); text-align: left;
+}
+.profile-btn:hover { border-color: var(--accent); background: var(--input); }
+.profile-avatar { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--accent-strong); color: #fff; font-weight: 800; }
+.profile-info { display: flex; flex-direction: column; line-height: 1.2; }
+.profile-info b { font-size: 13px; }
+.profile-info small { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+.pop-wrap { position: relative; }
+.popover {
+  position: absolute; top: calc(100% + 8px); right: 0; width: min(320px, calc(100vw - 32px)); z-index: 200;
+  background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .18);
+}
+.popover h4 { font-size: 14px; margin-bottom: 6px; }
+.popover p { font-size: 13px; color: var(--muted); }
+
+/* ============================== CONTENT BLOCKS ============================== */
+.welcome { margin-bottom: 22px; }
+.welcome h2 { font-size: 28px; letter-spacing: -.5px; }
+.welcome p, .page-head p { color: var(--muted); font-size: 14px; margin-top: 5px; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+.page-head h2 { font-size: 26px; letter-spacing: -.5px; }
+
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; }
+.card h3 { font-size: 15px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.stat p { color: var(--muted); font-size: 13px; }
+.stat .value { font-size: 30px; font-weight: 800; margin-top: 6px; color: var(--accent-text); }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.toolbar .field { flex: 1 1 220px; width: auto; }
+.toolbar select.field { flex: 0 1 180px; }
+
+.table-wrap { overflow-x: auto; position: relative; }
+table { width: 100%; border-collapse: collapse; min-width: 520px; }
+.table-wrap.wide table { min-width: 780px; }
+th, td { padding: 12px 14px; border-bottom: 1px solid var(--border); text-align: left; font-size: 14px; vertical-align: top; }
+th { color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+tr.break-row td { color: var(--muted); background: var(--input); }
+td.state { text-align: center; color: var(--muted); padding: 28px 14px; }
+.pair { font-size: 13px; line-height: 1.5; }
+.pair strong { font-weight: 600; margin-right: 4px; }
+
+.chip { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; background: var(--accent-tint); color: var(--accent-text); font-size: 12px; font-weight: 600; }
+
+.class-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.class-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.class-top h3 { font-size: 20px; }
+.class-card dl { display: grid; gap: 8px; }
+.class-card dt { color: var(--muted); font-size: 12px; }
+.class-card dd { font-size: 14px; font-weight: 600; }
+
+.day-tabs { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 2px; }
+.day-tab { flex: none; padding: 9px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--muted); font-weight: 600; }
+.day-tab.active { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+.note { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+
+.empty { color: var(--muted); font-size: 14px; padding: 8px 0; }
+.notice + .notice { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+.notice-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
+.notice h3 { font-size: 16px; margin-bottom: 4px; }
+.notice p { font-size: 14px; color: var(--muted); white-space: pre-wrap; }
+
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--border); }
+.setting-row:first-child { padding-top: 0; }
+.setting-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.setting-row .field { width: auto; min-width: 140px; }
+.switch { position: relative; display: inline-flex; width: 46px; height: 26px; flex: none; }
+.switch input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
+.slider { position: absolute; inset: 0; border-radius: 99px; background: #9a9a9a; transition: background .2s; }
+.slider::before { content: ""; position: absolute; width: 20px; height: 20px; left: 3px; top: 3px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.switch input:checked + .slider { background: var(--accent-strong); }
+.switch input:checked + .slider::before { transform: translateX(20px); }
+.switch input:focus-visible + .slider { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+.profile-card h3 { font-size: 20px; margin-bottom: 4px; }
+.profile-card p { color: var(--muted); margin-bottom: 12px; }
+
+/* ============================== MODALS ============================== */
+.modal {
+  position: fixed; inset: 0; z-index: 1000; display: none; align-items: center; justify-content: center;
+  padding: 20px; background: rgba(0, 0, 0, .5); backdrop-filter: blur(3px);
+}
+.modal.open { display: flex; }
+.dialog {
+  width: min(720px, 100%); max-height: min(90vh, 800px); display: flex; flex-direction: column; overflow: hidden;
+  background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 18px;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, .3);
+}
+.dialog.narrow { width: min(520px, 100%); }
+.dialog-head { flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 22px; border-bottom: 1px solid var(--border); }
+.dialog-head h3 { font-size: 20px; }
+.dialog-head p { color: var(--muted); font-size: 13px; margin-top: 3px; }
+.dialog-body { flex: 1 1 auto; overflow-y: auto; padding: 20px 22px; }
+.dialog-foot { flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 14px 22px; border-top: 1px solid var(--border); background: var(--card); }
+.dialog-foot .summary { margin-right: auto; font-size: 13px; color: var(--muted); }
+
+.form-row { display: flex; flex-direction: column; gap: 7px; margin-bottom: 16px; min-width: 0; border: 0; }
+.form-row > label, .form-row > legend, .block h4 { font-size: 13px; font-weight: 600; }
+.form-row > legend { margin-bottom: 7px; padding: 0; }
+.form-row textarea.field { min-height: 110px; resize: vertical; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+.hint { font-size: 12px; color: var(--muted); min-height: 0; }
+.hint.warn { color: var(--warn-text); background: var(--warn-tint); padding: 8px 10px; border-radius: 8px; }
+.block { border-top: 1px solid var(--border); padding-top: 18px; margin-top: 4px; }
+.block > p { font-size: 13px; color: var(--muted); margin: 3px 0 12px; }
+.pair-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; min-height: 34px; }
+.pair-chip { display: inline-flex; align-items: center; gap: 2px; padding: 4px 5px 4px 12px; border-radius: 999px; background: var(--accent-tint); color: var(--accent-text); border: 1px dashed transparent; font-size: 13px; font-weight: 600; }
+.pair-chip.is-new { border-color: var(--accent); }
+.pair-chip button { width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: inherit; font-size: 17px; line-height: 1; }
+.pair-chip button:hover { background: rgba(0, 0, 0, .12); }
+.adder { background: var(--input); border-radius: 12px; padding: 16px; }
+.adder .form-row:last-of-type { margin-bottom: 14px; }
+.adder .field { background: var(--card); }
+.mini-actions { display: flex; gap: 12px; }
+.check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.check { position: relative; display: block; }
+.check input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.check span { display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); font-size: 14px; font-weight: 600; transition: background .12s, border-color .12s; }
+.check input:checked + span { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-text); }
+.check input:focus-visible + span { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+
+/* ============================== TOAST ============================== */
+.toast {
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); z-index: 4000;
+  max-width: min(520px, calc(100vw - 32px)); padding: 12px 18px; border-radius: 12px;
+  background: #222; color: #fff; font-size: 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, .3);
+  opacity: 0; transform: translate(-50%, 12px); pointer-events: none; transition: opacity .2s, transform .2s;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast.success { background: var(--success); }
+.toast.error { background: var(--danger); color: #fff; }
+[data-theme="dark"] .toast.error { background: #b3261e; }
+
+/* ============================== RESPONSIVE ============================== */
+@media (max-width: 900px) {
+  .sidebar { transform: translateX(-100%); visibility: hidden; transition: transform .25s ease, visibility 0s linear .25s; box-shadow: 15px 0 40px rgba(0, 0, 0, .18); padding-top: max(22px, env(safe-area-inset-top)); }
+  body.nav-open .sidebar { transform: translateX(0); visibility: visible; transition-delay: 0s; }
+  body.nav-open .scrim { display: block; }
+  .main { margin-left: 0; }
+  .icon-btn.menu-btn { display: inline-flex; }
+  .topnav { display: none; }
+  .topbar { padding-left: max(14px, env(safe-area-inset-left)); padding-right: max(14px, env(safe-area-inset-right)); }
+  .content { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+}
+@media (max-width: 640px) {
+  .top-actions { gap: 6px; }
+  .top-actions .search { flex: 1; width: auto; min-width: 0; }
+  .top-actions > .icon-btn[data-page="settings"], .profile-info { display: none; }
+  .profile-btn { padding-right: 5px; }
+  .page-head h2 { font-size: 22px; }
+  .welcome h2 { font-size: 23px; }
+  .grid-2 { grid-template-columns: 1fr; }
+  .modal { align-items: flex-end; padding: 0; }
+  .dialog, .dialog.narrow { width: 100%; max-height: 92vh; border-radius: 18px 18px 0 0; border-bottom: 0; }
+  .dialog-head, .dialog-body, .dialog-foot { padding-left: 16px; padding-right: 16px; }
+  .dialog-foot { padding-bottom: calc(14px + env(safe-area-inset-bottom)); flex-wrap: wrap; }
+  .dialog-foot .summary { flex: 1 0 100%; }
+  .setting-row { flex-wrap: wrap; }
+
+  /* Teachers table turns into stacked cards on phones so the Manage button is never off-screen */
+  .table-wrap.wide table { min-width: 0; }
+  .table-wrap.wide thead { display: none; }
+  .table-wrap.wide tbody, .table-wrap.wide tr, .table-wrap.wide td { display: block; }
+  .table-wrap.wide tr.row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .table-wrap.wide td.name-cell, .table-wrap.wide td[data-label="Subjects and classes"], .table-wrap.wide td.action-cell { grid-column: 1 / -1; }
+  .table-wrap.wide tbody tr:last-child { border-bottom: 0; }
+  .table-wrap.wide td { border: 0; padding: 3px 4px; }
+  .table-wrap.wide td[data-label]::before { content: attr(data-label); display: block; color: var(--muted); font-size: 12px; }
+  .table-wrap.wide td.name-cell { font-size: 16px; font-weight: 700; }
+  .table-wrap.wide td.action-cell { padding-top: 10px; }
+  .table-wrap.wide td.state { text-align: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* ============================== MOTION ============================== */
+@keyframes pageIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes riseIn { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes dialogIn { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes dialogOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(10px) scale(.98); } }
+@keyframes popIn { from { opacity: 0; transform: translateY(-6px) scale(.98); } to { opacity: 1; transform: none; } }
+
+.app:not([hidden]) { animation: fadeIn .45s ease both; }
+.page.enter { animation: pageIn .38s cubic-bezier(.2, .7, .2, 1) both; }
+.page.enter > .card { animation: riseIn .5s cubic-bezier(.2, .7, .2, 1) both; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > * { animation: riseIn .5s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 55ms); }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(1) { --i: 0; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(2) { --i: 1; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(3) { --i: 2; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(4) { --i: 3; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(5) { --i: 4; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(6) { --i: 5; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(7) { --i: 6; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(8) { --i: 7; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(9) { --i: 8; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(10) { --i: 9; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(11) { --i: 10; }
+.enter :is(.stats, .class-grid, .notes-grid, .dash-grid, .thumbs, #noticeList, #announcementList) > :nth-child(12) { --i: 11; }
+.enter tbody tr { animation: fadeIn .45s ease both; }
+.enter tbody tr:nth-child(1) { animation-delay: 0.04s; }
+.enter tbody tr:nth-child(2) { animation-delay: 0.08s; }
+.enter tbody tr:nth-child(3) { animation-delay: 0.12s; }
+.enter tbody tr:nth-child(4) { animation-delay: 0.16s; }
+.enter tbody tr:nth-child(5) { animation-delay: 0.20s; }
+.enter tbody tr:nth-child(6) { animation-delay: 0.24s; }
+.enter tbody tr:nth-child(7) { animation-delay: 0.28s; }
+.enter tbody tr:nth-child(8) { animation-delay: 0.32s; }
+.swap tr { animation: fadeIn .3s ease both; }
+
+body.nav-open .scrim { animation: fadeIn .25s ease both; }
+.modal.open { animation: fadeIn .2s ease both; }
+.modal.open .dialog { animation: dialogIn .3s cubic-bezier(.2, .8, .2, 1) both; }
+.modal.open.closing { animation: fadeOut .17s ease both; pointer-events: none; }
+.modal.open.closing .dialog { animation: dialogOut .17s ease both; }
+.popover:not([hidden]) { animation: popIn .16s cubic-bezier(.2, .8, .2, 1) both; }
+
+.btn, .icon-btn, .top-btn, .nav-btn, .day-tab, .link-btn, .profile-btn { transition: background .18s ease, border-color .18s ease, color .18s ease, transform .12s ease, box-shadow .18s ease; }
+.btn:active:not(:disabled), .icon-btn:active, .day-tab:active, .profile-btn:active { transform: scale(.97); }
+.card, .notice { transition: border-color .2s ease, box-shadow .25s ease, transform .25s cubic-bezier(.2, .8, .2, 1), background .2s ease; }
+.class-card:hover, .note-card:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 14px 36px rgba(var(--accent-rgb), .14); }
+.field { transition: border-color .18s ease, box-shadow .18s ease, background .18s ease; }
+tbody tr { transition: background .15s ease; }
+tbody tr.row:hover { background: color-mix(in srgb, var(--input) 60%, transparent); }
+.stat .value { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+
+/* ============================== DEVELOPER PAGE ============================== */
+.chip.ok { background: #e3f4ea; color: var(--success); }
+.chip.danger { background: var(--danger-tint); color: var(--danger); }
+.chip.muted { background: var(--input); color: var(--muted); }
+.chip.warn { background: var(--warn-tint); color: var(--warn-text); }
+[data-theme="dark"] .chip.ok { background: #12291d; color: #5fd08c; }
+.small { font-size: 12px; }
+.dash-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; margin-bottom: 14px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.kv { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+.kv:last-child { border-bottom: 0; padding-bottom: 0; }
+.kv:first-of-type { padding-top: 4px; }
+.kv > span:first-child { color: var(--muted); flex: none; }
+.kv > b, .kv > span:last-child:not(:first-child) { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.tool { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 18px; text-align: left; color: var(--text); background: var(--card); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); transition: transform .2s cubic-bezier(.2, .8, .2, 1), border-color .2s, box-shadow .2s; }
+.tool:hover:not(:disabled) { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 14px 36px rgba(var(--accent-rgb), .14); }
+.tool-ico { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 11px; background: var(--accent-tint); color: var(--accent-text); }
+.tool-ico svg { width: 19px; height: 19px; }
+.tool h4 { font-size: 15px; }
+.tool p { font-size: 13px; color: var(--muted); }
+.log { font: 12.5px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--input); border-radius: 12px; padding: 14px; height: min(460px, 60vh); overflow: auto; }
+.log-line { white-space: pre-wrap; overflow-wrap: anywhere; }
+.log-time { color: var(--muted); margin-right: 8px; }
+.log-success { color: var(--success); } .log-error { color: var(--danger); } .log-warn { color: var(--warn-text); }
+[data-theme="dark"] .log-success { color: #5fd08c; }
+.chip-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.summary-line { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+.avatar-lg { width: 54px; height: 54px; display: grid; place-items: center; border-radius: 16px; background: var(--accent-strong); color: #fff; font-size: 22px; font-weight: 800; }
+.profile-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.profile-row h3 { font-size: 20px; }
+.setting-row .muted { font-size: 12px; }
+@media (max-width: 900px) { .dash-grid { grid-template-columns: 1fr; } }
+
+/* Schools */
+.back-btn { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 8px; padding: 6px 10px 6px 4px; border: 0; background: transparent; color: var(--accent-text); font-weight: 600; font-size: 14px; border-radius: 8px; }
+.back-btn:hover { background: var(--accent-tint); }
+.class-open { display: block; width: 100%; text-align: left; cursor: pointer; font: inherit; color: var(--text); }
+.class-open:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 14px 36px rgba(var(--accent-rgb), .14); }
+.class-open .class-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.class-open .class-top h3 { font-size: 19px; overflow-wrap: anywhere; }
+.class-open dl { display: grid; gap: 8px; }
+.class-open dt { color: var(--muted); font-size: 12px; }
+.class-open dd { font-size: 14px; font-weight: 600; }
+.class-open .card-cta { display: block; margin-top: 14px; font-size: 13px; font-weight: 600; color: var(--accent-text); }
+.banner { background: var(--warn-tint); color: var(--warn-text); border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-bottom: 16px; line-height: 1.5; }
+.class-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+
+
+/* ============================== DROPDOWNS ============================== */
+select.field {
+  -webkit-appearance: none; appearance: none; cursor: pointer; padding-right: 36px; text-overflow: ellipsis;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b6b6b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important; background-position: right 12px center !important; background-size: 14px !important;
+}
+[data-theme="dark"] select.field {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a3a3a3' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+}
+select.field option { background: var(--card); color: var(--text); }
+.dd-menu {
+  position: fixed; z-index: 5000; overflow-y: auto; padding: 6px;
+  background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .22);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: 14px; line-height: 1.35;
+  animation: ddIn .16s cubic-bezier(.2, .8, .2, 1) both;
+}
+.dd-opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border-radius: 8px; cursor: pointer; user-select: none; }
+.dd-opt.is-active { background: var(--input); }
+.dd-opt.is-selected { background: var(--accent-tint); color: var(--accent-text); font-weight: 600; }
+.dd-opt.is-selected::after { content: "✓"; font-size: 13px; }
+.dd-opt.is-disabled { color: var(--muted); cursor: not-allowed; opacity: .7; }
+
+@keyframes ddIn { from { opacity: 0; transform: translateY(-6px) scale(.98); } to { opacity: 1; transform: none; } }
+.dd-opt { transition: background .12s, color .12s; }
+
+
+/* ============================== COLOR THEMES ============================== */
+:root { --accent-rgb: 255, 120, 0; --accent2-rgb: 110, 90, 255; }
+[data-theme="light"][data-palette="amber"] {
+  --accent: #f59e0b; --accent-strong: #b45309; --accent-strong-hover: #92400e; --accent-text: #92400e; --accent-tint: #fef3c7;
+  --bg: #faf8f2; --card: #ffffff; --input: #f3efe3; --border: #e6dfcc;
+  --accent-rgb: 245,158,11; --accent2-rgb: 249,115,22;
+}
+[data-theme="dark"][data-palette="amber"] {
+  --accent: #fbbf24; --accent-strong: #b45309; --accent-strong-hover: #d97706; --accent-text: #fbbf24; --accent-tint: #2b2208;
+  --bg: #141108; --card: #1c180d; --input: #262112; --border: #3a3320;
+  --accent-rgb: 245,158,11; --accent2-rgb: 249,115,22;
+}
+[data-theme="light"][data-palette="lime"] {
+  --accent: #84cc16; --accent-strong: #4d7c0f; --accent-strong-hover: #3f6212; --accent-text: #3f6212; --accent-tint: #ecfccb;
+  --bg: #f6f9f0; --card: #ffffff; --input: #eef3e3; --border: #dbe4c7;
+  --accent-rgb: 132,204,22; --accent2-rgb: 34,197,94;
+}
+[data-theme="dark"][data-palette="lime"] {
+  --accent: #a3e635; --accent-strong: #4d7c0f; --accent-strong-hover: #65a30d; --accent-text: #bef264; --accent-tint: #1b2a0b;
+  --bg: #0f1409; --card: #161d0e; --input: #1e2714; --border: #2f3d20;
+  --accent-rgb: 132,204,22; --accent2-rgb: 34,197,94;
+}
+[data-theme="light"][data-palette="forest"] {
+  --accent: #22c55e; --accent-strong: #15803d; --accent-strong-hover: #166534; --accent-text: #166534; --accent-tint: #dcfce7;
+  --bg: #f3f8f4; --card: #ffffff; --input: #e8f1ea; --border: #d1e2d5;
+  --accent-rgb: 34,197,94; --accent2-rgb: 20,184,166;
+}
+[data-theme="dark"][data-palette="forest"] {
+  --accent: #4ade80; --accent-strong: #15803d; --accent-strong-hover: #16a34a; --accent-text: #86efac; --accent-tint: #0f2a17;
+  --bg: #0c130e; --card: #121b14; --input: #19241c; --border: #263a2b;
+  --accent-rgb: 34,197,94; --accent2-rgb: 20,184,166;
+}
+[data-theme="light"][data-palette="teal"] {
+  --accent: #14b8a6; --accent-strong: #0f766e; --accent-strong-hover: #115e59; --accent-text: #115e59; --accent-tint: #ccfbf1;
+  --bg: #f2f8f8; --card: #ffffff; --input: #e6f1f1; --border: #cfe3e3;
+  --accent-rgb: 20,184,166; --accent2-rgb: 59,130,246;
+}
+[data-theme="dark"][data-palette="teal"] {
+  --accent: #2dd4bf; --accent-strong: #0f766e; --accent-strong-hover: #0d9488; --accent-text: #5eead4; --accent-tint: #0d2b29;
+  --bg: #0b1313; --card: #111b1b; --input: #182424; --border: #243c3c;
+  --accent-rgb: 20,184,166; --accent2-rgb: 59,130,246;
+}
+[data-theme="light"][data-palette="sky"] {
+  --accent: #0ea5e9; --accent-strong: #0369a1; --accent-strong-hover: #075985; --accent-text: #075985; --accent-tint: #e0f2fe;
+  --bg: #f2f7fb; --card: #ffffff; --input: #e6eff7; --border: #d0dfec;
+  --accent-rgb: 14,165,233; --accent2-rgb: 99,102,241;
+}
+[data-theme="dark"][data-palette="sky"] {
+  --accent: #38bdf8; --accent-strong: #0369a1; --accent-strong-hover: #0284c7; --accent-text: #7dd3fc; --accent-tint: #0c2a3d;
+  --bg: #0b1218; --card: #111a22; --input: #18232d; --border: #243848;
+  --accent-rgb: 14,165,233; --accent2-rgb: 99,102,241;
+}
+[data-theme="light"][data-palette="ocean"] {
+  --accent: #3b82f6; --accent-strong: #1d4ed8; --accent-strong-hover: #1e40af; --accent-text: #1d4ed8; --accent-tint: #dbeafe;
+  --bg: #f3f6fc; --card: #ffffff; --input: #e8eef9; --border: #d3deef;
+  --accent-rgb: 59,130,246; --accent2-rgb: 168,85,247;
+}
+[data-theme="dark"][data-palette="ocean"] {
+  --accent: #60a5fa; --accent-strong: #1d4ed8; --accent-strong-hover: #2563eb; --accent-text: #93c5fd; --accent-tint: #12244a;
+  --bg: #0c1120; --card: #121a2e; --input: #19233d; --border: #26365a;
+  --accent-rgb: 59,130,246; --accent2-rgb: 168,85,247;
+}
+[data-theme="light"][data-palette="indigo"] {
+  --accent: #6366f1; --accent-strong: #4338ca; --accent-strong-hover: #3730a3; --accent-text: #4338ca; --accent-tint: #e0e7ff;
+  --bg: #f5f5fc; --card: #ffffff; --input: #ebebf8; --border: #d8d8ee;
+  --accent-rgb: 99,102,241; --accent2-rgb: 236,72,153;
+}
+[data-theme="dark"][data-palette="indigo"] {
+  --accent: #818cf8; --accent-strong: #4338ca; --accent-strong-hover: #4f46e5; --accent-text: #a5b4fc; --accent-tint: #1c1c4a;
+  --bg: #0f0f1f; --card: #16162b; --input: #1e1e3a; --border: #2f2f5a;
+  --accent-rgb: 99,102,241; --accent2-rgb: 236,72,153;
+}
+[data-theme="light"][data-palette="grape"] {
+  --accent: #a855f7; --accent-strong: #7e22ce; --accent-strong-hover: #6b21a8; --accent-text: #7e22ce; --accent-tint: #f3e8ff;
+  --bg: #f8f4fc; --card: #ffffff; --input: #f0e9f8; --border: #e2d6ef;
+  --accent-rgb: 168,85,247; --accent2-rgb: 244,114,182;
+}
+[data-theme="dark"][data-palette="grape"] {
+  --accent: #c084fc; --accent-strong: #7e22ce; --accent-strong-hover: #9333ea; --accent-text: #d8b4fe; --accent-tint: #2a1745;
+  --bg: #140d1c; --card: #1c1228; --input: #261a36; --border: #3c2856;
+  --accent-rgb: 168,85,247; --accent2-rgb: 244,114,182;
+}
+[data-theme="light"][data-palette="rose"] {
+  --accent: #ec4899; --accent-strong: #be185d; --accent-strong-hover: #9d174d; --accent-text: #be185d; --accent-tint: #fce7f3;
+  --bg: #fcf4f7; --card: #ffffff; --input: #f7e9ee; --border: #ecd6de;
+  --accent-rgb: 236,72,153; --accent2-rgb: 251,146,60;
+}
+[data-theme="dark"][data-palette="rose"] {
+  --accent: #f472b6; --accent-strong: #be185d; --accent-strong-hover: #db2777; --accent-text: #f9a8d4; --accent-tint: #3a1327;
+  --bg: #170d12; --card: #201219; --input: #2b1a23; --border: #45263a;
+  --accent-rgb: 236,72,153; --accent2-rgb: 251,146,60;
+}
+[data-theme="light"][data-palette="ruby"] {
+  --accent: #ef4444; --accent-strong: #b91c1c; --accent-strong-hover: #991b1b; --accent-text: #b91c1c; --accent-tint: #fee2e2;
+  --bg: #fcf4f4; --card: #ffffff; --input: #f8e9e9; --border: #eed6d6;
+  --accent-rgb: 239,68,68; --accent2-rgb: 249,115,22;
+}
+[data-theme="dark"][data-palette="ruby"] {
+  --accent: #f87171; --accent-strong: #b91c1c; --accent-strong-hover: #dc2626; --accent-text: #fca5a5; --accent-tint: #3a1313;
+  --bg: #170c0c; --card: #211212; --input: #2c1a1a; --border: #472626;
+  --accent-rgb: 239,68,68; --accent2-rgb: 249,115,22;
+}
+[data-theme="light"][data-palette="graphite"] {
+  --accent: #64748b; --accent-strong: #334155; --accent-strong-hover: #1e293b; --accent-text: #334155; --accent-tint: #e2e8f0;
+  --bg: #f3f4f6; --card: #ffffff; --input: #e8eaee; --border: #d5d9e0;
+  --accent-rgb: 100,116,139; --accent2-rgb: 148,163,184;
+}
+[data-theme="dark"][data-palette="graphite"] {
+  --accent: #94a3b8; --accent-strong: #475569; --accent-strong-hover: #64748b; --accent-text: #cbd5e1; --accent-tint: #1e2733;
+  --bg: #0f1114; --card: #161a1f; --input: #1e2329; --border: #2e353e;
+  --accent-rgb: 100,116,139; --accent2-rgb: 148,163,184;
+}
+
+/* theme picker */
+.swatch { display: inline-block; width: 16px; height: 16px; margin-right: 8px; border-radius: 50%; vertical-align: -3px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .18); }
+.tp-mode { display: inline-flex; margin-bottom: 16px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.tp-mode-btn { padding: 8px 16px; border: 0; background: var(--card); color: var(--muted); font-weight: 600; font-size: 14px; transition: background .15s, color .15s; }
+.tp-mode-btn + .tp-mode-btn { border-left: 1px solid var(--border); }
+.tp-mode-btn.is-on { background: var(--accent-tint); color: var(--accent-text); }
+.tp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.tp-card { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 8px 8px 10px; text-align: left; color: var(--text); background: var(--card); border: 2px solid var(--border); border-radius: 14px; transition: transform .18s cubic-bezier(.2, .8, .2, 1), border-color .18s, box-shadow .18s; }
+.tp-card:hover { transform: translateY(-3px); box-shadow: 0 10px 26px rgba(0, 0, 0, .14); }
+.tp-card.is-on { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .18); }
+.tp-mock { display: block; height: 78px; overflow: hidden; border-radius: 9px; background: var(--tp-bg); border: 1px solid var(--tp-border); }
+.tp-bar { display: block; height: 14px; background: var(--tp-card); border-bottom: 1px solid var(--tp-border); position: relative; }
+.tp-bar::after { content: ""; position: absolute; left: 6px; top: 4px; width: 22px; height: 6px; border-radius: 3px; background: var(--tp-strong); }
+.tp-body { display: flex; height: 64px; }
+.tp-side { width: 26px; background: var(--tp-card); border-right: 1px solid var(--tp-border); }
+.tp-main { flex: 1; display: flex; flex-direction: column; gap: 5px; padding: 8px; }
+.tp-line { display: block; height: 6px; width: 70%; border-radius: 3px; background: var(--tp-border); }
+.tp-line.s { width: 45%; }
+.tp-row { display: flex; gap: 5px; margin-top: 2px; }
+.tp-btn { width: 30px; height: 12px; border-radius: 4px; background: var(--tp-strong); }
+.tp-chip { width: 22px; height: 12px; border-radius: 6px; background: var(--tp-tint); box-shadow: inset 0 0 0 1px var(--tp-accent); }
+.tp-name { font-weight: 600; font-size: 14px; }
+.tp-check { position: absolute; right: 10px; bottom: 9px; width: 20px; height: 20px; display: none; place-items: center; border-radius: 50%; background: var(--accent-strong); color: #fff; font-size: 12px; }
+.tp-card.is-on .tp-check { display: grid; }
+
+
+/* ============================== PASSWORD (Profile page) ============================== */
+.pw-card { margin-top: 14px; }
+.pw-card h3 { margin-bottom: 4px; }
+.pw-wrap { position: relative; }
+.pw-wrap .field { padding-right: 46px; }
+.pw-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--muted); }
+.pw-toggle:hover { background: var(--input); color: var(--text); }
+.pw-toggle svg { width: 18px; height: 18px; }
+.alert { padding: 11px 13px; margin: 12px 0; border-radius: 11px; font-size: 13px; line-height: 1.5; }
+.alert.error { background: var(--danger-tint); color: var(--danger); }
+.alert.success { background: #e3f4ea; color: var(--success); }
+.alert.info { background: var(--accent-tint); color: var(--accent-text); }
+[data-theme="dark"] .alert.success { background: #12291d; color: #5fd08c; }
+
+</style>
+</head>
+<body>
+
+<!-- Shown while access is checked, and if the user isn't allowed in -->
+<div id="gate" class="gate">
+  <div class="gate-card">
+    <h1>Classyn</h1>
+    <p id="gateMsg">Checking your access…</p>
+    <div class="gate-actions" id="gateActions" hidden></div>
+  </div>
+</div>
+
+<div class="app" id="app" hidden>
+  <div class="scrim" id="scrim"></div>
+
+  <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+    <div class="brand">Classyn</div>
+    <div class="workspace">Developer</div>
+    <nav>
+      <button class="nav-btn active" data-page="home"><i data-lucide="layout-dashboard"></i> Home</button>
+      <button class="nav-btn" data-page="schools"><i data-lucide="building-2"></i> Schools</button>
+      <button class="nav-btn" data-page="database"><i data-lucide="database"></i> Database</button>
+      <button class="nav-btn" data-page="authentication"><i data-lucide="shield-check"></i> Authentication</button>
+      <button class="nav-btn" data-page="system"><i data-lucide="server"></i> System data</button>
+      <button class="nav-btn" data-page="tools"><i data-lucide="wrench"></i> Tools</button>
+      <button class="nav-btn" data-page="logs"><i data-lucide="terminal"></i> Logs</button>
+      <button class="nav-btn" data-page="profile"><i data-lucide="user-round"></i> Profile</button>
+      <button class="nav-btn" data-page="settings"><i data-lucide="settings"></i> Settings</button>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false"><i data-lucide="menu">☰</i></button>
+      <div class="topnav">
+        <button class="top-btn top-active" data-page="home">Home</button>
+        <button class="top-btn" data-page="notices">Notices</button>
+        <button class="top-btn" data-page="chat">Chat</button>
+      </div>
+      <div class="top-actions">
+        <button class="icon-btn" id="refreshBtn" aria-label="Refresh data" title="Refresh data"><i data-lucide="refresh-cw"></i></button>
+        <button class="icon-btn" data-page="settings" aria-label="Settings"><i data-lucide="settings"></i></button>
+        <button class="profile-btn" data-page="profile" aria-label="Your profile">
+          <span class="profile-avatar" id="avatar">D</span>
+          <span class="profile-info"><b id="devName">Developer</b><small>Developer</small></span>
+        </button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <section id="home" class="page active">
+        <div class="welcome"><h2 id="welcomeTitle">Welcome</h2><p>Monitor and manage the Classyn platform.</p></div>
+        <div class="stats">
+          <div class="card stat"><p>Schools</p><div class="value" id="sSchools">–</div></div>
+          <div class="card stat"><p>Students</p><div class="value" id="sStudents">–</div></div>
+          <div class="card stat"><p>Teachers</p><div class="value" id="sTeachers">–</div></div>
+          <div class="card stat"><p>Classes</p><div class="value" id="sClasses">–</div></div>
+        </div>
+        <div class="dash-grid">
+          <div class="card">
+            <div class="card-head"><h3>System status</h3><span class="muted small" id="statusTime"></span></div>
+            <div class="kv"><span>Supabase database</span><span class="chip muted" id="dbStatus">Checking</span></div>
+            <div class="kv"><span>Authentication</span><span class="chip muted" id="authStatus">Checking</span></div>
+            <div class="kv"><span>Application</span><span class="chip ok">Online</span></div>
+            <div class="kv"><span>Response time</span><b id="latency">–</b></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>Environment</h3></div>
+            <div class="kv"><span>Platform</span><b id="platformInfo">–</b></div>
+            <div class="kv"><span>Browser</span><b id="browserInfo">–</b></div>
+            <div class="kv"><span>Time zone</span><b id="zoneInfo">–</b></div>
+            <div class="kv"><span>Last refresh</span><b id="lastRefresh">–</b></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Quick actions</h3>
+          <div class="actions">
+            <button class="btn btn-primary" data-act="refresh">Refresh data</button>
+            <button class="btn" data-act="test">Test database</button>
+            <button class="btn" data-act="copy">Copy diagnostics</button>
+            <button class="btn" data-page="schools">Open schools</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="notices" class="page">
+        <div class="page-head"><div><h2>Notices</h2><p>Announcements published across Classyn.</p></div></div>
+        <div class="card"><div id="noticeList"><p class="empty">Loading…</p></div></div>
+      </section>
+
+      <section id="chat" class="page">
+        <div class="page-head"><div><h2>Chat</h2><p>Student and teacher messages.</p></div></div>
+        <div class="card"><p class="empty">Chats are private conversations between students and their teachers, so the developer view only shows totals (see System data).</p></div>
+      </section>
+
+      <section id="database" class="page">
+        <div class="page-head">
+          <div><h2>Database</h2><p>Every Classyn table with its live row count.</p></div>
+          <button class="btn btn-primary" id="checkTablesBtn">Check all tables</button>
+        </div>
+        <div class="card">
+          <div class="toolbar"><input id="tableSearch" class="field" type="search" placeholder="Search tables…" aria-label="Search tables"></div>
+          <p class="summary-line" id="tableSummary"></p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Table</th><th>Purpose</th><th>Rows</th><th>Status</th></tr></thead>
+              <tbody id="tableList"><tr><td colspan="4" class="state">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="authentication" class="page">
+        <div class="page-head"><div><h2>Authentication</h2><p>Your current sign-in session. Classyn uses Supabase Auth.</p></div></div>
+        <div class="dash-grid">
+          <div class="card">
+            <div class="card-head"><h3>Session</h3></div>
+            <div class="kv"><span>Email</span><b id="aEmail">–</b></div>
+            <div class="kv"><span>Role</span><b id="aRole">–</b></div>
+            <div class="kv"><span>Sign-in method</span><b id="aProvider">–</b></div>
+            <div class="kv"><span>Last sign-in</span><b id="aLast">–</b></div>
+            <div class="kv"><span>Session expires</span><b id="aExpires">–</b></div>
+            <div class="kv"><span>User ID</span><b id="aId" class="small">–</b></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>Security</h3></div>
+            <div class="kv"><span>Browser key</span><span class="chip ok">Publishable key only</span></div>
+            <div class="kv"><span>Row Level Security</span><span class="chip muted">Enforced by the database</span></div>
+            <div class="actions">
+              <button class="btn" data-page="profile">Change password</button>
+              <button class="btn" id="signOutBtn">Sign out</button>
+              <button class="btn" id="signOutAllBtn">Sign out everywhere</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="schools" class="page">
+        <div id="schoolsList" class="view">
+          <div class="page-head">
+            <div><h2>Schools</h2><p>Every school set up on Classyn.</p></div>
+            <button class="btn btn-primary" id="addSchoolBtn">Add school</button>
+          </div>
+          <div class="banner" id="schoolNote" hidden></div>
+          <div id="schoolGrid" class="class-grid"><div class="card empty">Loading…</div></div>
+        </div>
+
+        <div id="schoolDetail" class="view" hidden>
+          <div class="page-head">
+            <div><button type="button" class="back-btn" id="schoolBack">← All schools</button><h2 id="schoolTitle">School</h2><p id="schoolSub"></p></div>
+            <button class="btn" id="editSchoolBtn">Edit school</button>
+          </div>
+          <div class="stats" id="schoolStats"></div>
+          <div class="dash-grid">
+            <div class="card"><div class="card-head"><h3>Details</h3></div><div id="schoolInfo"></div></div>
+            <div class="card"><div class="card-head"><h3>Subjects</h3></div><div class="chip-list" id="subjectList"></div></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>Classes</h3><span class="muted small" id="classSummary"></span></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Class</th><th>Grade</th><th>Section</th><th>Students</th></tr></thead>
+                <tbody id="classTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="system" class="page">
+        <div class="page-head"><div><h2>System data</h2><p>Live totals across the platform.</p></div></div>
+        <div class="stats" id="systemStats"></div>
+      </section>
+
+      <section id="tools" class="page">
+        <div class="page-head"><div><h2>Tools</h2><p>Developer utilities for Classyn.</p></div></div>
+        <div class="tool-grid">
+          <button class="tool" data-act="refresh"><span class="tool-ico"><i data-lucide="refresh-cw"></i></span><h4>Refresh data</h4><p>Reload every live number from Supabase.</p></button>
+          <button class="tool" data-act="test"><span class="tool-ico"><i data-lucide="database-zap"></i></span><h4>Test database</h4><p>Check the connection and measure the response time.</p></button>
+          <button class="tool" data-act="copy"><span class="tool-ico"><i data-lucide="clipboard-copy"></i></span><h4>Copy diagnostics</h4><p>Copy a summary (session, counts, browser) to paste into a support message.</p></button>
+          <button class="tool" data-act="clear"><span class="tool-ico"><i data-lucide="trash-2"></i></span><h4>Clear logs</h4><p>Clear the developer activity log on this page.</p></button>
+        </div>
+      </section>
+
+      <section id="logs" class="page">
+        <div class="page-head"><div><h2>Logs</h2><p>Activity on this page since you opened it.</p></div><button class="btn" data-act="clear">Clear logs</button></div>
+        <div class="card"><div class="log" id="devLog" role="log" aria-live="polite"></div></div>
+      </section>
+
+      <section id="profile" class="page">
+        <div class="page-head"><div><h2>Profile</h2><p>Your developer account.</p></div></div>
+        <div class="card profile-card">
+          <div class="profile-row">
+            <span class="avatar-lg" id="profileAvatar">D</span>
+            <div><h3 id="profileName">Developer</h3><p id="profileEmail">–</p></div>
+            <span class="chip">Developer</span>
+          </div>
+        </div>
+        <div class="card pw-card" id="pwCard">
+          <h3>Change password</h3>
+          <p class="muted small">Choose a new password and save. You stay signed in.</p>
+          <div id="pwMsg" class="alert" hidden role="alert" aria-live="polite"></div>
+          <form id="pwForm" novalidate>
+            <div class="grid-2" style="margin-top:14px">
+              <div class="form-row">
+                <label for="pwNew">New password</label>
+                <div class="pw-wrap"><input class="field" id="pwNew" type="password" autocomplete="new-password" placeholder="At least 8 characters"><button type="button" class="pw-toggle" data-for="pwNew" aria-label="Show password"></button></div>
+              </div>
+              <div class="form-row">
+                <label for="pwConfirm">Confirm new password</label>
+                <div class="pw-wrap"><input class="field" id="pwConfirm" type="password" autocomplete="new-password" placeholder="Type it again"><button type="button" class="pw-toggle" data-for="pwConfirm" aria-label="Show password"></button></div>
+              </div>
+            </div>
+            <div class="actions" style="margin-top:0"><button type="submit" class="btn btn-primary" id="pwSave">Save password</button></div>
+          </form>
+        </div>
+      </section>
+
+      <section id="settings" class="page">
+        <div class="page-head"><div><h2>Settings</h2><p>Your preferences on this device.</p></div></div>
+        <div class="card">
+          <div class="setting-row">
+            <label for="appearance"><b>Appearance</b></label>
+            <select class="field" id="appearance"><option value="light">Light</option><option value="dark">Dark</option></select>
+          </div>
+          <div class="setting-row">
+            <div><b>Color theme</b><div class="muted small" id="paletteName">Sunset</div></div>
+            <button type="button" class="btn" id="themeBtn"><span class="swatch" id="themeSwatch"></span>Change theme</button>
+          </div>
+          <div class="setting-row">
+            <b>Account</b>
+            <button class="btn" id="signOutBtn2">Sign out</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- Add / edit a school -->
+<div class="modal" id="schoolModal">
+  <form class="dialog" id="schoolForm" role="dialog" aria-modal="true" aria-labelledby="schoolFormTitle">
+    <div class="dialog-head">
+      <div><h3 id="schoolFormTitle">Add school</h3><p>These details appear in the school's app.</p></div>
+      <button type="button" class="icon-btn" data-close="schoolModal" aria-label="Close">×</button>
+    </div>
+    <div class="dialog-body">
+      <div class="form-row"><label for="schName">School name</label><input class="field" id="schName" required maxlength="120" placeholder="e.g. Velammal Vidhyashram" data-autofocus></div>
+      <div class="grid-2">
+        <div class="form-row"><label for="schYear">Academic year</label><input class="field" id="schYear" maxlength="20" placeholder="e.g. 2026-27"></div>
+        <div class="form-row"><label for="schTerm">Current term</label><input class="field" id="schTerm" maxlength="40" placeholder="e.g. Term 1"></div>
+        <div class="form-row"><label for="schEmail">Contact email</label><input class="field" id="schEmail" type="email" maxlength="120" placeholder="office@school.com"></div>
+        <div class="form-row"><label for="schPhone">Contact phone</label><input class="field" id="schPhone" maxlength="30" placeholder="+91 …"></div>
+      </div>
+      <div class="form-row"><label for="schAddress">Address</label><textarea class="field" id="schAddress" rows="3" maxlength="300"></textarea></div>
+    </div>
+    <div class="dialog-foot">
+      <button type="button" class="btn" data-close="schoolModal">Cancel</button>
+      <button type="submit" class="btn btn-primary" id="schSave">Save school</button>
+    </div>
+  </form>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* Styled dropdown list for every <select>. The real <select> stays in the page (value, change events, form reset
+   and code that fills it all keep working); only the popup list is replaced. Phones keep their native picker. */
+(function () {
+  'use strict';
+  if (window.__classynDropdown) return;
+  window.__classynDropdown = true;
+  if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return;
+
+  var menu = null, sel = null, active = -1;
+
+  function options() { return Array.prototype.slice.call(sel.options); }
+
+  function close(refocus) {
+    if (menu) { menu.remove(); menu = null; }
+    var s = sel; sel = null; active = -1;
+    if (refocus && s && document.contains(s)) s.focus();
+  }
+
+  function setActive(i, scroll) {
+    var items = menu.children;
+    if (active >= 0 && items[active]) items[active].classList.remove('is-active');
+    active = i;
+    if (items[i]) {
+      items[i].classList.add('is-active');
+      if (scroll !== false) items[i].scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  function choose(i) {
+    var o = sel && sel.options[i];
+    if (!o || o.disabled) return;
+    var s = sel, changed = s.selectedIndex !== i;
+    s.selectedIndex = i;
+    close(true);
+    if (changed) {
+      s.dispatchEvent(new Event('input', { bubbles: true }));
+      s.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
+  function step(dir) {
+    var opts = options(), i = active;
+    for (var n = 0; n < opts.length; n++) {
+      i = (i + dir + opts.length) % opts.length;
+      if (!opts[i].disabled) { setActive(i); return; }
+    }
+  }
+
+  function open(s) {
+    close(false);
+    if (s.disabled || !s.options.length) return;
+    sel = s;
+    menu = document.createElement('div');
+    menu.className = 'dd-menu';
+    menu.setAttribute('role', 'listbox');
+    options().forEach(function (o, i) {
+      var d = document.createElement('div');
+      d.className = 'dd-opt' + (i === s.selectedIndex ? ' is-selected' : '') + (o.disabled ? ' is-disabled' : '');
+      d.setAttribute('role', 'option');
+      d.setAttribute('aria-selected', String(i === s.selectedIndex));
+      d.textContent = o.textContent;
+      d.dataset.i = i;
+      menu.appendChild(d);
+    });
+    document.body.appendChild(menu);
+
+    var r = s.getBoundingClientRect(), vh = window.innerHeight, vw = window.innerWidth;
+    var below = vh - r.bottom - 12, above = r.top - 12;
+    var h = Math.min(menu.scrollHeight + 2, 320);
+    var placeAbove = h > below && above > below;
+    var maxH = Math.max(120, Math.min(320, placeAbove ? above : below));
+    menu.style.maxHeight = maxH + 'px';
+    menu.style.minWidth = Math.max(r.width, 140) + 'px';
+    var mh = Math.min(h, maxH);
+    menu.style.top = (placeAbove ? Math.max(8, r.top - mh - 4) : r.bottom + 4) + 'px';
+    var left = r.left, w = menu.offsetWidth;
+    if (left + w > vw - 8) left = Math.max(8, vw - 8 - w);
+    menu.style.left = left + 'px';
+
+    setActive(s.selectedIndex >= 0 ? s.selectedIndex : 0);
+  }
+
+  // Open on click instead of the browser's own popup
+  document.addEventListener('mousedown', function (e) {
+    var t = e.target;
+    if (menu && menu.contains(t)) { e.preventDefault(); return; }       // keep focus on the select
+    if (t.closest && t.closest('select') && !t.closest('select[multiple]')) {
+      var s = t.closest('select');
+      e.preventDefault();
+      if (s.disabled) return;
+      s.focus();
+      if (menu && sel === s) close(false); else open(s);
+      return;
+    }
+    if (menu) close(false);
+  }, true);
+
+  document.addEventListener('click', function (e) {
+    if (!menu) return;
+    var o = e.target.closest && e.target.closest('.dd-opt');
+    if (o && menu.contains(o)) choose(+o.dataset.i);
+  }, true);
+
+  document.addEventListener('mouseover', function (e) {
+    if (!menu) return;
+    var o = e.target.closest && e.target.closest('.dd-opt');
+    if (o && menu.contains(o) && !o.classList.contains('is-disabled')) setActive(+o.dataset.i, false);
+  });
+
+  window.addEventListener('keydown', function (e) {
+    if (menu) {
+      var k = e.key, handled = true;
+      if (k === 'ArrowDown') step(1);
+      else if (k === 'ArrowUp') step(-1);
+      else if (k === 'Home') { active = -1; step(1); }
+      else if (k === 'End') { active = 0; step(-1); }
+      else if (k === 'Enter' || k === ' ') choose(active);
+      else if (k === 'Escape') close(true);
+      else if (k === 'Tab') { close(false); handled = false; }
+      else handled = false;
+      if (handled) { e.preventDefault(); e.stopPropagation(); }
+      return;
+    }
+    var t = e.target;
+    if (t && t.tagName === 'SELECT' && !t.multiple && !t.disabled && (e.key === 'Enter' || e.key === ' ' || (e.altKey && e.key === 'ArrowDown'))) {
+      e.preventDefault(); open(t);
+    }
+  }, true);
+
+  window.addEventListener('resize', function () { if (menu) close(false); });
+  window.addEventListener('scroll', function (e) { if (menu && !(menu.contains(e.target))) close(false); }, true);
+})();
+</script>
+<script>
+/* Color themes: 12 palettes, applied instantly and remembered on this device (shared by every Classyn page). */
+(function () {
+  'use strict';
+  if (window.__classynThemes) return;
+  window.__classynThemes = true;
+
+  var KEY = 'classyn-palette', DEFAULT = 'sunset';
+  var PALETTES = [{"id": "sunset", "name": "Sunset", "light": {"accent": "#ff7800", "strong": "#c25100", "hover": "#a34500", "text": "#b34700", "tint": "#fff1e6", "bg": "#f6f6f6", "card": "#ffffff", "input": "#f1f1f1", "border": "#dedede"}, "dark": {"accent": "#ff7800", "strong": "#d45a00", "hover": "#e86400", "text": "#ff9a3d", "tint": "#2b1b0e", "bg": "#111111", "card": "#181818", "input": "#222222", "border": "#303030"}}, {"id": "amber", "name": "Amber", "light": {"accent": "#f59e0b", "strong": "#b45309", "hover": "#92400e", "text": "#92400e", "tint": "#fef3c7", "bg": "#faf8f2", "card": "#ffffff", "input": "#f3efe3", "border": "#e6dfcc"}, "dark": {"accent": "#fbbf24", "strong": "#b45309", "hover": "#d97706", "text": "#fbbf24", "tint": "#2b2208", "bg": "#141108", "card": "#1c180d", "input": "#262112", "border": "#3a3320"}}, {"id": "lime", "name": "Lime", "light": {"accent": "#84cc16", "strong": "#4d7c0f", "hover": "#3f6212", "text": "#3f6212", "tint": "#ecfccb", "bg": "#f6f9f0", "card": "#ffffff", "input": "#eef3e3", "border": "#dbe4c7"}, "dark": {"accent": "#a3e635", "strong": "#4d7c0f", "hover": "#65a30d", "text": "#bef264", "tint": "#1b2a0b", "bg": "#0f1409", "card": "#161d0e", "input": "#1e2714", "border": "#2f3d20"}}, {"id": "forest", "name": "Forest", "light": {"accent": "#22c55e", "strong": "#15803d", "hover": "#166534", "text": "#166534", "tint": "#dcfce7", "bg": "#f3f8f4", "card": "#ffffff", "input": "#e8f1ea", "border": "#d1e2d5"}, "dark": {"accent": "#4ade80", "strong": "#15803d", "hover": "#16a34a", "text": "#86efac", "tint": "#0f2a17", "bg": "#0c130e", "card": "#121b14", "input": "#19241c", "border": "#263a2b"}}, {"id": "teal", "name": "Teal", "light": {"accent": "#14b8a6", "strong": "#0f766e", "hover": "#115e59", "text": "#115e59", "tint": "#ccfbf1", "bg": "#f2f8f8", "card": "#ffffff", "input": "#e6f1f1", "border": "#cfe3e3"}, "dark": {"accent": "#2dd4bf", "strong": "#0f766e", "hover": "#0d9488", "text": "#5eead4", "tint": "#0d2b29", "bg": "#0b1313", "card": "#111b1b", "input": "#182424", "border": "#243c3c"}}, {"id": "sky", "name": "Sky", "light": {"accent": "#0ea5e9", "strong": "#0369a1", "hover": "#075985", "text": "#075985", "tint": "#e0f2fe", "bg": "#f2f7fb", "card": "#ffffff", "input": "#e6eff7", "border": "#d0dfec"}, "dark": {"accent": "#38bdf8", "strong": "#0369a1", "hover": "#0284c7", "text": "#7dd3fc", "tint": "#0c2a3d", "bg": "#0b1218", "card": "#111a22", "input": "#18232d", "border": "#243848"}}, {"id": "ocean", "name": "Ocean", "light": {"accent": "#3b82f6", "strong": "#1d4ed8", "hover": "#1e40af", "text": "#1d4ed8", "tint": "#dbeafe", "bg": "#f3f6fc", "card": "#ffffff", "input": "#e8eef9", "border": "#d3deef"}, "dark": {"accent": "#60a5fa", "strong": "#1d4ed8", "hover": "#2563eb", "text": "#93c5fd", "tint": "#12244a", "bg": "#0c1120", "card": "#121a2e", "input": "#19233d", "border": "#26365a"}}, {"id": "indigo", "name": "Indigo", "light": {"accent": "#6366f1", "strong": "#4338ca", "hover": "#3730a3", "text": "#4338ca", "tint": "#e0e7ff", "bg": "#f5f5fc", "card": "#ffffff", "input": "#ebebf8", "border": "#d8d8ee"}, "dark": {"accent": "#818cf8", "strong": "#4338ca", "hover": "#4f46e5", "text": "#a5b4fc", "tint": "#1c1c4a", "bg": "#0f0f1f", "card": "#16162b", "input": "#1e1e3a", "border": "#2f2f5a"}}, {"id": "grape", "name": "Grape", "light": {"accent": "#a855f7", "strong": "#7e22ce", "hover": "#6b21a8", "text": "#7e22ce", "tint": "#f3e8ff", "bg": "#f8f4fc", "card": "#ffffff", "input": "#f0e9f8", "border": "#e2d6ef"}, "dark": {"accent": "#c084fc", "strong": "#7e22ce", "hover": "#9333ea", "text": "#d8b4fe", "tint": "#2a1745", "bg": "#140d1c", "card": "#1c1228", "input": "#261a36", "border": "#3c2856"}}, {"id": "rose", "name": "Rose", "light": {"accent": "#ec4899", "strong": "#be185d", "hover": "#9d174d", "text": "#be185d", "tint": "#fce7f3", "bg": "#fcf4f7", "card": "#ffffff", "input": "#f7e9ee", "border": "#ecd6de"}, "dark": {"accent": "#f472b6", "strong": "#be185d", "hover": "#db2777", "text": "#f9a8d4", "tint": "#3a1327", "bg": "#170d12", "card": "#201219", "input": "#2b1a23", "border": "#45263a"}}, {"id": "ruby", "name": "Ruby", "light": {"accent": "#ef4444", "strong": "#b91c1c", "hover": "#991b1b", "text": "#b91c1c", "tint": "#fee2e2", "bg": "#fcf4f4", "card": "#ffffff", "input": "#f8e9e9", "border": "#eed6d6"}, "dark": {"accent": "#f87171", "strong": "#b91c1c", "hover": "#dc2626", "text": "#fca5a5", "tint": "#3a1313", "bg": "#170c0c", "card": "#211212", "input": "#2c1a1a", "border": "#472626"}}, {"id": "graphite", "name": "Graphite", "light": {"accent": "#64748b", "strong": "#334155", "hover": "#1e293b", "text": "#334155", "tint": "#e2e8f0", "bg": "#f3f4f6", "card": "#ffffff", "input": "#e8eaee", "border": "#d5d9e0"}, "dark": {"accent": "#94a3b8", "strong": "#475569", "hover": "#64748b", "text": "#cbd5e1", "tint": "#1e2733", "bg": "#0f1114", "card": "#161a1f", "input": "#1e2329", "border": "#2e353e"}}];
+  var byId = {};
+  PALETTES.forEach(function (p) { byId[p.id] = p; });
+
+  var root = document.documentElement, modal = null, opener = null;
+
+  function stored() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+  function current() { var id = root.getAttribute('data-palette') || stored() || DEFAULT; return byId[id] ? id : DEFAULT; }
+  function mode() { return root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'; }
+
+  function refreshLabels() {
+    var p = byId[current()];
+    var name = document.getElementById('paletteName'), sw = document.getElementById('themeSwatch');
+    if (name) name.textContent = p.name;
+    if (sw) sw.style.background = 'linear-gradient(135deg, ' + p.light.accent + ', ' + p.light.strong + ')';
+    if (modal) modal.querySelectorAll('.tp-card').forEach(function (c) {
+      var on = c.dataset.palette === p.id;
+      c.classList.toggle('is-on', on); c.setAttribute('aria-pressed', String(on));
+    });
+  }
+
+  function apply(id) {
+    if (!byId[id]) id = DEFAULT;
+    root.setAttribute('data-palette', id);
+    try { localStorage.setItem(KEY, id); } catch (e) {}
+    refreshLabels();
+  }
+
+  function setMode(v) {
+    var sel = document.getElementById('appearance') || document.getElementById('appearanceSelect');
+    if (sel) { sel.value = v; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+    else root.setAttribute('data-theme', v);
+  }
+
+  function renderGrid() {
+    var m = mode();
+    modal.querySelectorAll('.tp-mode-btn').forEach(function (b) { b.classList.toggle('is-on', b.dataset.mode === m); });
+    var grid = modal.querySelector('#tpGrid');
+    grid.innerHTML = PALETTES.map(function (p) {
+      var c = p[m];
+      var vars = '--tp-bg:' + c.bg + ';--tp-card:' + c.card + ';--tp-border:' + c.border + ';--tp-accent:' + c.accent + ';--tp-strong:' + c.strong + ';--tp-tint:' + c.tint;
+      return '<button type="button" class="tp-card" data-palette="' + p.id + '" aria-pressed="false" style="' + vars + '">' +
+        '<span class="tp-mock"><span class="tp-bar"></span><span class="tp-body"><span class="tp-side"></span>' +
+        '<span class="tp-main"><span class="tp-line"></span><span class="tp-line s"></span><span class="tp-row"><i class="tp-btn"></i><i class="tp-chip"></i></span></span></span></span>' +
+        '<span class="tp-name">' + p.name + '</span><span class="tp-check" aria-hidden="true">✓</span></button>';
+    }).join('');
+    refreshLabels();
+  }
+
+  function build() {
+    modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'themeModal';
+    modal.innerHTML =
+      '<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="themeDlgTitle">' +
+        '<div class="dialog-head"><div><h3 id="themeDlgTitle">Choose a theme</h3><p>Pick a color. It applies right away and is remembered on this device.</p></div>' +
+        '<button type="button" class="icon-btn" data-tp-close aria-label="Close">×</button></div>' +
+        '<div class="dialog-body"><div class="tp-mode" role="group" aria-label="Appearance">' +
+          '<button type="button" class="tp-mode-btn" data-mode="light">☀ Light</button><button type="button" class="tp-mode-btn" data-mode="dark">☾ Dark</button></div>' +
+          '<div class="tp-grid" id="tpGrid"></div></div>' +
+        '<div class="dialog-foot"><button type="button" class="btn" id="tpReset" style="margin-right:auto">Reset to default</button>' +
+        '<button type="button" class="btn btn-primary" data-tp-close>Done</button></div>' +
+      '</div>';
+    document.body.appendChild(modal);
+
+    modal.addEventListener('click', function (e) {
+      var card = e.target.closest('.tp-card');
+      if (card) { apply(card.dataset.palette); return; }
+      var mb = e.target.closest('.tp-mode-btn');
+      if (mb) { setMode(mb.dataset.mode); return; }
+      if (e.target.closest('[data-tp-close]')) { close(); return; }
+      if (e.target.closest('#tpReset')) apply(DEFAULT);
+    });
+    modal.addEventListener('mousedown', function (e) { if (e.target === modal) close(); });
+    // keep the preview cards in step if light/dark is switched while the dialog is open
+    new MutationObserver(function () { if (modal.classList.contains('open')) renderGrid(); }).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  }
+
+  function open() {
+    if (!modal) build();
+    opener = document.activeElement;
+    renderGrid();
+    modal.classList.remove('closing');
+    modal.classList.add('open');
+    document.body.classList.add('modal-open');
+    var on = modal.querySelector('.tp-card.is-on') || modal.querySelector('.tp-card');
+    if (on) on.focus();
+  }
+
+  function close() {
+    if (!modal || !modal.classList.contains('open') || modal.classList.contains('closing')) return;
+    modal.classList.add('closing');
+    if (!document.querySelector('.modal.open:not(.closing)')) document.body.classList.remove('modal-open');
+    if (opener && opener.focus) opener.focus();
+    setTimeout(function () { if (modal.classList.contains('closing')) modal.classList.remove('open', 'closing'); }, 170);
+  }
+
+  document.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('#themeBtn')) open(); });
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && modal && modal.classList.contains('open') && !modal.classList.contains('closing')) {
+      e.preventDefault(); e.stopPropagation(); close();
+    }
+  }, true);
+
+  apply(current());
+  window.ClassynThemes = { apply: apply, open: open, current: current, palettes: PALETTES };
+})();
+</script>
+<script>
+/* Change password, right on the Profile page: type a new password twice and save. The person stays signed in. */
+(function () {
+  'use strict';
+  var card = document.getElementById('pwCard');
+  if (!card) return;
+  var $ = function (id) { return document.getElementById(id); };
+
+  var EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/></svg>';
+  var EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 4.3A10.8 10.8 0 0 1 12 4c6.5 0 10 6 10 6a18 18 0 0 1-3.1 3.7"/><path d="M6.6 6.6C3.7 8.4 2 12 2 12s3.5 6 10 6c1.4 0 2.7-.3 3.8-.8"/></svg>';
+  card.querySelectorAll('.pw-toggle').forEach(function (btn) {
+    btn.innerHTML = EYE;
+    btn.addEventListener('click', function () {
+      var input = $(btn.dataset.for), show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.innerHTML = show ? EYE_OFF : EYE;
+      btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    });
+  });
+
+  var timer = null;
+  function say(text, type) {
+    var m = $('pwMsg');
+    clearTimeout(timer);
+    if (!text) { m.hidden = true; m.textContent = ''; return; }
+    m.textContent = text; m.className = 'alert ' + (type || 'info'); m.hidden = false;
+    if (type === 'success') timer = setTimeout(function () { m.hidden = true; }, 9000);
+  }
+
+  function friendly(err) {
+    var m = String((err && err.message) || err || '');
+    if (/reauthentication|recent login|nonce/i.test(m)) return 'For your security, please log out, log in again, and then change your password.';
+    if (/same as the old|different from the old|should be different/i.test(m)) return 'Your new password must be different from your current one.';
+    if (/rate limit|too many|security purposes/i.test(m)) return 'Too many attempts. Please wait a minute and try again.';
+    if (/network|failed to fetch/i.test(m)) return 'Could not reach the server. Check your internet connection and try again.';
+    if (/session|jwt|not authenticated/i.test(m)) return 'Your session has expired. Please log in again.';
+    return m || 'Could not change the password. Please try again.';
+  }
+
+  var busy = false;
+  $('pwForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (busy) return;
+    say('');
+    var pw = $('pwNew').value, again = $('pwConfirm').value, db = window.__classynDb;
+    if (!db) { say('Could not reach the server. Reload the page and try again.', 'error'); return; }
+    if (pw.length < 8) { say('Your password must have at least 8 characters.', 'error'); $('pwNew').focus(); return; }
+    if (pw !== again) { say('The two passwords do not match.', 'error'); $('pwConfirm').focus(); return; }
+
+    var btn = $('pwSave'), label = btn.textContent;
+    busy = true; btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      var r = await db.auth.updateUser({ password: pw });
+      if (r.error) throw r.error;
+      $('pwForm').reset();
+      say('Password changed. Use your new password the next time you log in.', 'success');
+    } catch (err) {
+      console.error('Password change error:', err);
+      say(friendly(err), 'error');
+    }
+    busy = false; btn.disabled = false; btn.textContent = label;
+  });
+})();
+</script>
+<script>
+function navigate(url) { location.assign(url); }
+
+(function () {
+  'use strict';
+
+  /* ============================== CONFIG ============================== */
+  var SUPABASE_URL = 'https://prgnkdccxhhwyaotrcqf.supabase.co';
+  var SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_WsohCufpMh539Di000EW8Q_4XRRmcar'; // publishable key only, never a secret/service_role key
+  var LOGIN_PAGE = 'Login.html';
+  var PASSWORD_PAGE = 'change-password.html';
+  var HOME_PAGES = { student: 'Student.html', teacher: 'Teacher.html', admin: 'admin.html', administrator: 'admin.html', developer: 'Developer.html' };
+
+  // Every table in the Classyn database, with what it holds.
+  var TABLES = [
+    ['profiles', 'User profiles and roles'], ['students', 'Student records'], ['teachers', 'Teacher records'],
+    ['sections', 'Classes'], ['subjects', 'Subjects'], ['teacher_assignments', 'Who teaches what, where'],
+    ['teacher_sections', 'Teacher–class links'], ['teacher_subjects', 'Teacher–subject links'], ['timetable', 'Timetable periods'],
+    ['assignments', 'Assignments'], ['assignment_completions', 'Assignments marked done'], ['assignment_submissions', 'Assignment submissions'],
+    ['assignment_files', 'Assignment files'], ['notes', 'Notes'], ['note_photos', 'Note photos'], ['note_files', 'Note files'],
+    ['attendance', 'Attendance'], ['exams', 'Exam periods'], ['results', 'Exam results'], ['announcements', 'Announcements'],
+    ['events', 'Events'], ['school_calendar', 'School calendar'], ['school_settings', 'School settings'],
+    ['conversations', 'Chat conversations'], ['conversation_members', 'Chat members'], ['messages', 'Chat messages'],
+    ['notifications', 'Notifications'], ['device_tokens', 'Push notification devices'], ['parent_students', 'Parent–student links'],
+    ['study_routines', 'Student study routines'], ['tasks', 'Student tasks'], ['audit_logs', 'Audit log']
+  ];
+  var PAGES = ['home', 'notices', 'chat', 'schools', 'database', 'authentication', 'system', 'tools', 'logs', 'profile', 'settings'];
+
+  /* ============================== HELPERS ============================== */
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  };
+  var cmp = function (a, b) { return String(a).localeCompare(String(b), undefined, { numeric: true }); };
+  var same = function (a, b) { return a != null && b != null && String(a) === String(b); };
+  function fmtDate(v) {
+    if (!v) return '—';
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+    var d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(v);
+    return isNaN(d) ? '—' : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  function fmtDateTime(v) {
+    if (!v) return '—';
+    var d = new Date(v);
+    return isNaN(d) ? '—' : d.toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+
+  var toastTimer;
+  function toast(msg, type) {
+    var t = $('toast');
+    t.textContent = msg;
+    t.className = 'toast show ' + (type || 'info');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, type === 'error' ? 7000 : 3000);
+  }
+
+  function showGate(msg, actions) {
+    $('gate').hidden = false;
+    $('app').hidden = true;
+    $('gateMsg').textContent = msg;
+    var box = $('gateActions');
+    box.innerHTML = '';
+    (actions || []).forEach(function (a) {
+      var b = document.createElement('button');
+      b.className = 'btn' + (a.primary ? ' btn-primary' : '');
+      b.textContent = a.label;
+      b.addEventListener('click', a.onClick);
+      box.appendChild(b);
+    });
+    box.hidden = !(actions && actions.length);
+  }
+
+  if (!window.supabase || !window.supabase.createClient) {
+    showGate('Classyn could not load its database library. Check your internet connection and reload the page.',
+      [{ label: 'Reload', primary: true, onClick: function () { location.reload(); } }]);
+    return;
+  }
+  var db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+  window.__classynDb = db;                       // used by the change-password card on the Profile page
+
+  /* ============================== MOTION HELPERS ============================== */
+  var REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  function enter(el) {
+    if (!el || REDUCED) return;
+    el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter');
+    clearTimeout(el._enterTimer);
+    el._enterTimer = setTimeout(function () { el.classList.remove('enter'); }, 1200);
+  }
+  function swap(el) {
+    if (!el || REDUCED) return;
+    el.classList.remove('swap'); void el.offsetWidth; el.classList.add('swap');
+  }
+  function setStat(id, text) {
+    var el = $(id), m = /^(\d+)(%?)$/.exec(String(text));
+    cancelAnimationFrame(el._raf);
+    if (!m || REDUCED) { el.textContent = text; return; }
+    var to = +m[1], from = parseInt(el.textContent, 10);
+    if (isNaN(from) || from === to) { if (isNaN(from)) from = 0; else { el.textContent = text; return; } }
+    var t0 = performance.now(), dur = 700;
+    (function tick(now) {
+      var p = Math.min(1, ((now || t0) - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(from + (to - from) * e) + m[2];
+      if (p < 1) el._raf = requestAnimationFrame(tick);
+    })(t0);
+  }
+
+  /* ============================== THEME ============================== */
+  function setTheme(v) {
+    v = v === 'dark' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', v);
+    try { localStorage.setItem('classyn-dev-theme', v); } catch (e) {}
+    $('appearance').value = v;
+  }
+
+  /* ============================== LOG ============================== */
+  function devLog(message, type) {
+    var log = $('devLog');
+    var line = document.createElement('div');
+    line.className = 'log-line';
+    line.innerHTML = '<span class="log-time">[' + esc(new Date().toLocaleTimeString()) + ']</span><span class="log-' + (type || 'info') + '">' + esc(message) + '</span>';
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  /* ============================== NAVIGATION ============================== */
+  var currentPage = 'home';
+  function showPage(id, opts) {
+    if (PAGES.indexOf(id) < 0) id = 'home';
+    var prev = currentPage;
+    currentPage = id;
+    document.querySelectorAll('.page').forEach(function (p) { p.classList.toggle('active', p.id === id); });
+    if (id === 'schools' && prev !== 'schools') { state.openSchool = null; $('schoolsList').hidden = false; $('schoolDetail').hidden = true; }
+    enter($(id));
+    document.querySelectorAll('.nav-btn, .top-btn').forEach(function (b) {
+      var on = b.dataset.page === id;
+      b.classList.toggle('active', on && b.classList.contains('nav-btn'));
+      b.classList.toggle('top-active', on && b.classList.contains('top-btn'));
+      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
+    closeSidebar();
+    if (!opts || opts.push !== false) { try { history.replaceState(null, '', '#' + id); } catch (e) {} }
+    window.scrollTo(0, 0);
+  }
+  function openSidebar() { document.body.classList.add('nav-open'); $('menuBtn').setAttribute('aria-expanded', 'true'); }
+  function closeSidebar() { document.body.classList.remove('nav-open'); $('menuBtn').setAttribute('aria-expanded', 'false'); }
+
+  /* ============================== DATA ============================== */
+  var state = { profile: null, user: null, session: null, counts: new Map(), roleCounts: new Map(), schools: [], sections: [], subjects: [], studentsBySection: new Map(), announcements: [], latency: null, loading: true, openSchool: null };
+  var sectionById = new Map();
+  var secLabel = function (s) { return s ? (s.class_code || (String(s.grade == null ? '' : s.grade) + String(s.section == null ? '' : s.section)) || 'Class') : '—'; };
+
+  async function fetchAll(table, cols) {
+    var size = 1000, from = 0, all = [];
+    for (;;) {
+      var r = await db.from(table).select(cols).order('id').range(from, from + size - 1);
+      if (r.error) return { data: null, error: r.error };
+      all = all.concat(r.data || []);
+      if (!r.data || r.data.length < size) break;
+      from += size;
+      if (from > 100000) break;
+    }
+    return { data: all, error: null };
+  }
+
+  async function countTable(name) {
+    try {
+      var r = await db.from(name).select('*', { count: 'exact', head: true });
+      if (r.error) return { count: null, error: r.error.message || String(r.error) };
+      return { count: r.count == null ? 0 : r.count, error: null };
+    } catch (err) {
+      return { count: null, error: err.message || String(err) };
+    }
+  }
+
+  async function loadCounts() {
+    var t0 = performance.now();
+    var res = await Promise.all(TABLES.map(function (t) { return countTable(t[0]); }));
+    state.latency = Math.round(performance.now() - t0);
+    TABLES.forEach(function (t, i) { state.counts.set(t[0], res[i]); });
+    var failed = res.filter(function (r) { return r.error; }).length;
+    devLog('Checked ' + TABLES.length + ' tables' + (failed ? ' (' + failed + ' could not be read)' : '') + ' in ' + state.latency + ' ms.', failed ? 'warn' : 'success');
+  }
+
+  async function loadDirectory() {
+    var r = await Promise.all([
+      db.from('school_settings').select('*').order('id'),
+      db.from('sections').select('id,grade,section,class_code,class_teacher_id'),
+      db.from('subjects').select('id,name').order('name'),
+      fetchAll('students', 'id,section_id'),                                    // only ids: used to count students per class, no names
+      db.from('announcements').select('id,section_id,title,message,type,announcement_date,created_at').order('created_at', { ascending: false }).limit(50)
+    ]);
+    var names = ['school_settings', 'sections', 'subjects', 'students', 'announcements'];
+    r.forEach(function (x, i) { if (x.error) devLog('Could not read ' + names[i] + ': ' + x.error.message, 'warn'); });
+    state.schools = r[0].data || [];
+    state.sections = (r[1].data || []).slice().sort(function (a, b) { return cmp(secLabel(a), secLabel(b)); });
+    state.subjects = r[2].data || [];
+    state.studentsBySection = new Map();
+    (r[3].data || []).forEach(function (x) { var k = String(x.section_id); state.studentsBySection.set(k, (state.studentsBySection.get(k) || 0) + 1); });
+    state.announcements = r[4].data || [];
+    sectionById = new Map(state.sections.map(function (x) { return [String(x.id), x]; }));
+  }
+
+  /* How many accounts of each kind exist (counts only, no names). */
+  async function loadRoleCounts() {
+    var roles = ['Student', 'Teacher', 'Admin', 'Developer', 'Parent'];
+    var res = await Promise.all(roles.map(function (role) {
+      return db.from('profiles').select('*', { count: 'exact', head: true }).eq('role', role);
+    }));
+    roles.forEach(function (role, i) { state.roleCounts.set(role, res[i].error ? null : (res[i].count || 0)); });
+  }
+
+  async function loadAll() {
+    devLog('Loading live data…', 'info');
+    await Promise.all([loadCounts(), loadDirectory(), loadRoleCounts()]);
+    state.loading = false;
+    $('lastRefresh').textContent = new Date().toLocaleTimeString();
+    $('statusTime').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    renderAll();
+  }
+
+  /* ============================== RENDER ============================== */
+  var countOf = function (name) { var c = state.counts.get(name); return c && c.error == null ? c.count : null; };
+  var show = function (n) { return n == null ? '–' : n; };
+
+  function renderHome() {
+    setStat('sSchools', String(state.loading ? '–' : state.schools.length));
+    var stu = state.roleCounts.get('Student'), tch = state.roleCounts.get('Teacher');
+    setStat('sStudents', String(stu == null ? '–' : stu));
+    setStat('sTeachers', String(tch == null ? '–' : tch));
+    setStat('sClasses', String(state.loading ? '–' : state.sections.length));
+    var probe = state.counts.get('profiles');
+    var ok = probe && probe.error == null;
+    $('dbStatus').textContent = state.loading ? 'Checking' : ok ? 'Connected' : 'Error';
+    $('dbStatus').className = 'chip ' + (state.loading ? 'muted' : ok ? 'ok' : 'danger');
+    $('authStatus').textContent = state.session ? 'Signed in' : 'Signed out';
+    $('authStatus').className = 'chip ' + (state.session ? 'ok' : 'danger');
+    $('latency').textContent = state.latency == null ? '–' : state.latency + ' ms';
+  }
+
+  function renderDatabase() {
+    var q = ($('tableSearch').value || '').trim().toLowerCase();
+    var rows = TABLES.map(function (t) {
+      if (q && (t[0] + ' ' + t[1]).toLowerCase().indexOf(q) < 0) return '';
+      var c = state.counts.get(t[0]);
+      var status = !c ? '<span class="chip muted">Checking</span>'
+        : c.error ? '<span class="chip danger" title="' + esc(c.error) + '">' + (/permission|denied|policy|rls/i.test(c.error) ? 'No access' : 'Error') + '</span>'
+        : '<span class="chip ok">Connected</span>';
+      return '<tr class="row"><td><b>' + esc(t[0]) + '</b></td><td>' + esc(t[1]) + '</td><td>' + (c && c.error == null ? c.count : '–') + '</td><td>' + status + '</td></tr>';
+    }).filter(Boolean);
+    $('tableList').innerHTML = rows.join('') || '<tr><td colspan="4" class="state">' + (state.loading ? 'Loading…' : 'No matching tables.') + '</td></tr>';
+    var ok = 0, bad = 0;
+    state.counts.forEach(function (c) { if (c.error) bad++; else ok++; });
+    var total = 0; state.counts.forEach(function (c) { if (!c.error) total += c.count; });
+    $('tableSummary').textContent = state.counts.size ? ok + ' of ' + TABLES.length + ' tables readable · ' + total.toLocaleString() + ' rows in total' + (bad ? ' · ' + bad + ' not readable with your role' : '') : '';
+  }
+
+  function renderAuth() {
+    var u = state.user, s = state.session, p = state.profile;
+    $('aEmail').textContent = (u && u.email) || '–';
+    $('aRole').textContent = (p && p.role) || '–';
+    var prov = u && u.app_metadata && (u.app_metadata.providers || (u.app_metadata.provider ? [u.app_metadata.provider] : []));
+    $('aProvider').textContent = prov && prov.length ? prov.join(', ') : '–';
+    $('aLast').textContent = fmtDateTime(u && u.last_sign_in_at);
+    $('aExpires').textContent = s && s.expires_at ? fmtDateTime(s.expires_at * 1000) : '–';
+    $('aId').textContent = (u && u.id) || '–';
+  }
+
+  /* ---- Schools ---- */
+  var schoolStudents = function () { var n = state.roleCounts.get('Student'); return n == null ? '–' : n; };
+  var one = function () { return state.schools.length === 1; };
+
+  function renderSchools() {
+    var note = $('schoolNote');
+    note.hidden = state.loading || state.schools.length < 1;
+    note.textContent = state.schools.length > 1
+      ? 'Student, teacher and class numbers describe this whole database. The tables are not split by school yet, so they can’t be shown per school.'
+      : 'The numbers on the card describe this database. It currently holds one school.';
+    $('schoolGrid').innerHTML = state.schools.length ? state.schools.map(function (sc, i) {
+      var many = state.schools.length > 1;
+      return '<button type="button" class="card class-card class-open stagger" style="--i:' + i + '" data-school="' + esc(sc.id) + '">' +
+        '<span class="class-top"><h3>' + esc(sc.school_name || 'Unnamed school') + '</h3>' + (sc.academic_year ? '<span class="chip">' + esc(sc.academic_year) + '</span>' : '') + '</span>' +
+        '<dl><div><dt>Current term</dt><dd>' + esc(sc.current_term || '—') + '</dd></div>' +
+        '<div><dt>Contact</dt><dd>' + esc(sc.contact_email || sc.contact_phone || '—') + '</dd></div>' +
+        '<div><dt>Students · Teachers · Classes</dt><dd>' + (many ? '—' : schoolStudents() + ' · ' + show(state.roleCounts.get('Teacher')) + ' · ' + state.sections.length) + '</dd></div></dl>' +
+        '<span class="card-cta">Open ›</span></button>';
+    }).join('') : '<div class="card empty">' + (state.loading ? 'Loading…' : 'No school has been added yet. Use “Add school” to create the first one.') + '</div>';
+    if (state.openSchool != null) renderSchoolDetail();
+  }
+
+  function renderSchoolDetail() {
+    var sc = state.schools.filter(function (x) { return same(x.id, state.openSchool); })[0];
+    if (!sc) return;
+    $('schoolTitle').textContent = sc.school_name || 'Unnamed school';
+    $('schoolSub').textContent = [sc.academic_year, sc.current_term].filter(Boolean).join(' · ') || 'No academic year set';
+    var many = state.schools.length > 1;
+    var stat = function (l, v) { return '<div class="card stat"><p>' + l + '</p><div class="value">' + v + '</div></div>'; };
+    $('schoolStats').innerHTML = stat('Students', many ? '–' : schoolStudents()) + stat('Teachers', many ? '–' : show(state.roleCounts.get('Teacher'))) +
+      stat('Classes', many ? '–' : state.sections.length) + stat('Subjects', many ? '–' : state.subjects.length);
+    var kv = function (l, v) { return '<div class="kv"><span>' + l + '</span><b>' + esc(v || '—') + '</b></div>'; };
+    $('schoolInfo').innerHTML = kv('School name', sc.school_name) + kv('Academic year', sc.academic_year) + kv('Current term', sc.current_term) +
+      kv('Contact email', sc.contact_email) + kv('Contact phone', sc.contact_phone) + kv('Address', sc.address) + kv('Added', fmtDate(sc.created_at ? String(sc.created_at).slice(0, 10) : ''));
+    $('subjectList').innerHTML = state.subjects.map(function (x) { return '<span class="chip">' + esc(x.name) + '</span>'; }).join('') || '<span class="muted">No subjects yet.</span>';
+    $('classTable').innerHTML = state.sections.map(function (sec) {
+      return '<tr class="row"><td><b>' + esc(secLabel(sec)) + '</b></td><td>' + esc(sec.grade == null ? '—' : sec.grade) + '</td><td>' + esc(sec.section || '—') + '</td><td>' + (state.studentsBySection.get(String(sec.id)) || 0) + '</td></tr>';
+    }).join('') || '<tr><td colspan="4" class="state">No classes yet.</td></tr>';
+    var grades = new Set(state.sections.map(function (x) { return x.grade; }).filter(function (g) { return g != null; }));
+    $('classSummary').textContent = state.sections.length ? state.sections.length + ' classes · ' + grades.size + ' grades' : '';
+  }
+
+  function setSchoolView(name) {
+    $('schoolsList').hidden = name !== 'list';
+    $('schoolDetail').hidden = name !== 'detail';
+    enter($(name === 'list' ? 'schoolsList' : 'schoolDetail'));
+    window.scrollTo(0, 0);
+  }
+  function openSchool(id) { state.openSchool = id; renderSchoolDetail(); setSchoolView('detail'); }
+
+  function renderSystem() {
+    var items = [['attendance', 'Attendance records'], ['results', 'Results'], ['exams', 'Exams'], ['announcements', 'Announcements'], ['events', 'Events'],
+      ['timetable', 'Timetable periods'], ['assignments', 'Assignments'], ['assignment_completions', 'Assignments done'], ['notes', 'Notes'], ['note_photos', 'Note photos'],
+      ['conversations', 'Conversations'], ['messages', 'Messages'], ['notifications', 'Notifications'], ['teachers', 'Teachers'], ['students', 'Students'], ['sections', 'Classes']];
+    $('systemStats').innerHTML = items.map(function (it) {
+      var n = countOf(it[0]);
+      return '<div class="card stat"><p>' + esc(it[1]) + '</p><div class="value">' + (n == null ? '–' : n.toLocaleString()) + '</div></div>';
+    }).join('');
+  }
+
+  function renderNotices() {
+    var list = state.announcements;
+    $('noticeList').innerHTML = list.length ? list.map(function (a) {
+      var aud = a.section_id == null ? 'Whole school' : secLabel(sectionById.get(String(a.section_id)));
+      var when = a.announcement_date ? fmtDate(a.announcement_date) : fmtDate(a.created_at ? String(a.created_at).slice(0, 10) : '');
+      return '<article class="notice"><div class="notice-top"><span class="chip">' + esc(a.type || 'Notice') + '</span><span class="chip">' + esc(aud) + '</span>' +
+        '<span class="muted">' + esc(when) + '</span></div><h3>' + esc(a.title || 'Untitled') + '</h3><p>' + esc(a.message || '') + '</p></article>';
+    }).join('') : '<p class="empty">' + (state.loading ? 'Loading…' : 'No announcements have been published yet.') + '</p>';
+  }
+
+  function renderProfile() {
+    var p = state.profile, u = state.user;
+    var name = (p && p.full_name) || 'Developer';
+    $('devName').textContent = name;
+    $('profileName').textContent = name;
+    $('profileEmail').textContent = (p && p.email) || (u && u.email) || '';
+    $('avatar').textContent = $('profileAvatar').textContent = name.trim().charAt(0).toUpperCase() || 'D';
+  }
+
+  function renderAll() { renderHome(); renderSchools(); renderDatabase(); renderAuth(); renderSystem(); renderNotices(); renderProfile(); }
+
+  /* ============================== DIALOGS ============================== */
+  var lastFocus = null, editingSchool = null;
+  function openModal(id) {
+    lastFocus = document.activeElement;
+    var m = $(id);
+    m.classList.remove('closing'); m.classList.add('open');
+    document.body.classList.add('modal-open');
+    var f = m.querySelector('[data-autofocus]') || m.querySelector('input:not(:disabled), select:not(:disabled), textarea, button');
+    if (f) f.focus();
+  }
+  function closeModal(id) {
+    var m = $(id);
+    if (!m.classList.contains('open') || m.classList.contains('closing')) return;
+    m.classList.add('closing');
+    if (!document.querySelector('.modal.open:not(.closing)')) document.body.classList.remove('modal-open');
+    if (lastFocus && lastFocus.focus) lastFocus.focus();
+    setTimeout(function () { if (m.classList.contains('closing')) m.classList.remove('open', 'closing'); }, REDUCED ? 0 : 170);
+  }
+
+  function openSchoolForm(school) {
+    editingSchool = school || null;
+    $('schoolFormTitle').textContent = school ? 'Edit school' : 'Add school';
+    $('schName').value = (school && school.school_name) || '';
+    $('schYear').value = (school && school.academic_year) || '';
+    $('schTerm').value = (school && school.current_term) || '';
+    $('schEmail').value = (school && school.contact_email) || '';
+    $('schPhone').value = (school && school.contact_phone) || '';
+    $('schAddress').value = (school && school.address) || '';
+    openModal('schoolModal');
+  }
+
+  async function saveSchool(e) {
+    e.preventDefault();
+    if (busy) return;
+    var name = $('schName').value.trim().replace(/\s+/g, ' ');
+    if (!name) { toast('Enter the school name.', 'error'); return; }
+    var payload = {
+      school_name: name, academic_year: $('schYear').value.trim() || null, current_term: $('schTerm').value.trim() || null,
+      contact_email: $('schEmail').value.trim() || null, contact_phone: $('schPhone').value.trim() || null, address: $('schAddress').value.trim() || null,
+      updated_by: state.user ? state.user.id : null
+    };
+    var btn = $('schSave'), label = btn.textContent, ok = false;
+    busy = true; btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      var r = editingSchool
+        ? await db.from('school_settings').update(payload).eq('id', editingSchool.id).select('id')
+        : await db.from('school_settings').insert(payload).select('id');
+      if (r.error) throw r.error;
+      if (!(r.data || []).length) throw new Error('The database refused this. Run step 15 of classyn_setup.sql so developers can manage schools.');
+      ok = true;
+      devLog((editingSchool ? 'Updated' : 'Added') + ' school “' + name + '”.', 'success');
+    } catch (err) {
+      console.error('Saving school failed:', err);
+      devLog('Saving school failed: ' + err.message, 'error');
+      toast(/row-level security|permission/i.test(err.message || '') ? 'Your role can’t change schools yet. Run step 15 of classyn_setup.sql in Supabase.' : 'Could not save: ' + err.message, 'error');
+    }
+    if (ok) await loadAll();
+    busy = false; btn.disabled = false; btn.textContent = label;
+    if (ok) { closeModal('schoolModal'); editingSchool = null; toast('School saved.', 'success'); }
+  }
+
+  /* ============================== TOOLS ============================== */
+  var busy = false;
+  async function refreshAll() {
+    if (busy) return;
+    busy = true;
+    var btn = $('refreshBtn'); btn.disabled = true;
+    devLog('Refreshing Classyn data…', 'info');
+    try { await loadAll(); toast('Data refreshed.', 'success'); }
+    catch (err) { devLog('Refresh failed: ' + err.message, 'error'); toast('Refresh failed: ' + err.message, 'error'); }
+    btn.disabled = false; busy = false;
+  }
+
+  async function testDatabase() {
+    devLog('Testing the database connection…', 'info');
+    var t0 = performance.now();
+    var r = await db.from('profiles').select('id').limit(1);
+    var ms = Math.round(performance.now() - t0);
+    if (r.error) {
+      $('dbStatus').textContent = 'Error'; $('dbStatus').className = 'chip danger';
+      devLog('Database test failed: ' + r.error.message, 'error');
+      toast('Database test failed: ' + r.error.message, 'error');
+      return;
+    }
+    state.latency = ms; $('latency').textContent = ms + ' ms';
+    $('dbStatus').textContent = 'Connected'; $('dbStatus').className = 'chip ok';
+    devLog('Database test passed in ' + ms + ' ms.', 'success');
+    toast('Database is reachable (' + ms + ' ms).', 'success');
+  }
+
+  function diagnostics() {
+    var counts = {};
+    state.counts.forEach(function (c, k) { counts[k] = c.error ? 'error: ' + c.error : c.count; });
+    return {
+      time: new Date().toISOString(), page: location.href,
+      user: { id: state.user && state.user.id, email: state.user && state.user.email, role: state.profile && state.profile.role },
+      supabaseHost: new URL(SUPABASE_URL).host, responseTimeMs: state.latency, tableCounts: counts,
+      browser: navigator.userAgent, platform: navigator.platform, timeZone: (Intl.DateTimeFormat().resolvedOptions() || {}).timeZone
+    };
+  }
+  async function copyDiagnostics() {
+    var text = JSON.stringify(diagnostics(), null, 2);
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(text);
+      else throw new Error('no clipboard');
+    } catch (e) {
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (err) { ta.remove(); toast('Could not copy. Open Logs and copy from there.', 'error'); return; }
+      ta.remove();
+    }
+    devLog('Diagnostics copied to the clipboard.', 'success');
+    toast('Diagnostics copied.', 'success');
+  }
+
+  function clearLogs() { $('devLog').innerHTML = ''; devLog('Logs cleared.', 'info'); }
+
+  async function signOut(scope) {
+    devLog('Signing out' + (scope === 'global' ? ' everywhere' : '') + '…', 'info');
+    try { await db.auth.signOut(scope === 'global' ? { scope: 'global' } : undefined); } catch (e) { console.error(e); }
+    navigate(LOGIN_PAGE);
+  }
+
+  /* ============================== WIRING ============================== */
+  function wire() {
+    document.addEventListener('click', function (e) {
+      var nav = e.target.closest('[data-page]');
+      if (nav) { showPage(nav.dataset.page); return; }
+      var act = e.target.closest('[data-act]');
+      if (act) {
+        var a = act.dataset.act;
+        if (a === 'refresh') refreshAll(); else if (a === 'test') testDatabase(); else if (a === 'copy') copyDiagnostics(); else if (a === 'clear') clearLogs();
+      }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      var open = document.querySelector('.modal.open:not(.closing)');
+      if (open) closeModal(open.id); else closeSidebar();
+    });
+    window.addEventListener('hashchange', function () { showPage(location.hash.slice(1), { push: false }); });
+    $('menuBtn').addEventListener('click', function () { document.body.classList.contains('nav-open') ? closeSidebar() : openSidebar(); });
+    $('scrim').addEventListener('click', closeSidebar);
+    $('refreshBtn').addEventListener('click', refreshAll);
+    $('checkTablesBtn').addEventListener('click', async function () {
+      var b = this; b.disabled = true; b.textContent = 'Checking…';
+      await loadCounts(); renderAll();
+      b.disabled = false; b.textContent = 'Check all tables';
+      toast('Checked ' + TABLES.length + ' tables.', 'success');
+    });
+    $('tableSearch').addEventListener('input', renderDatabase);
+    $('addSchoolBtn').addEventListener('click', function () { openSchoolForm(null); });
+    $('editSchoolBtn').addEventListener('click', function () {
+      var sc = state.schools.filter(function (x) { return same(x.id, state.openSchool); })[0];
+      if (sc) openSchoolForm(sc);
+    });
+    $('schoolForm').addEventListener('submit', saveSchool);
+    $('schoolGrid').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-school]');
+      if (b) openSchool(b.dataset.school);
+    });
+    $('schoolBack').addEventListener('click', function () { state.openSchool = null; setSchoolView('list'); });
+    document.addEventListener('click', function (e) {
+      var c = e.target.closest('[data-close]');
+      if (c) closeModal(c.dataset.close);
+    });
+    document.querySelectorAll('.modal').forEach(function (m) {
+      m.addEventListener('mousedown', function (e) { if (e.target === m) closeModal(m.id); });
+    });
+    $('appearance').addEventListener('change', function () { setTheme(this.value); });
+    ['signOutBtn', 'signOutBtn2'].forEach(function (id) { $(id).addEventListener('click', function () { signOut(); }); });
+    $('signOutAllBtn').addEventListener('click', function () {
+      if (confirm('Sign out of every device where you are logged in?')) signOut('global');
+    });
+    db.auth.onAuthStateChange(function (event, session) {
+      if (event === 'SIGNED_OUT') navigate(LOGIN_PAGE);
+      else if (session) { state.session = session; }
+    });
+  }
+
+  /* ============================== START ============================== */
+  async function init() {
+    wire();
+    $('appearance').value = document.documentElement.getAttribute('data-theme') || 'light';
+    $('platformInfo').textContent = navigator.platform || 'Browser';
+    $('browserInfo').textContent = (navigator.userAgent || '').split(' ').slice(-2).join(' ') || 'Browser';
+    try { $('zoneInfo').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone || '–'; } catch (e) { $('zoneInfo').textContent = '–'; }
+    devLog('Classyn developer dashboard started.', 'success');
+
+    var session = null, profile = null;
+    try {
+      var s = await db.auth.getSession();
+      session = s && s.data ? s.data.session : null;
+      if (session) {
+        var p = await db.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+        if (p.error) throw p.error;
+        profile = p.data;
+      }
+    } catch (err) {
+      console.error(err);
+      showGate('Could not check your account: ' + (err.message || 'unknown error'), [
+        { label: 'Try again', primary: true, onClick: function () { location.reload(); } },
+        { label: 'Sign in again', onClick: function () { navigate(LOGIN_PAGE); } }
+      ]);
+      return;
+    }
+
+    if (!session) { navigate(LOGIN_PAGE); return; }
+    if (!profile) {
+      showGate('Your profile isn’t set up yet. Contact your school admin.', [
+        { label: 'Sign out', primary: true, onClick: function () { signOut(); } }
+      ]);
+      return;
+    }
+    var role = String(profile.role || '').toLowerCase();
+    if (role !== 'developer') {
+      var dest = HOME_PAGES[role];
+      if (dest) { navigate(dest); return; }
+      showGate('This page is for developers. Your account is signed in as ' + (role || 'an unknown role') + '.', [
+        { label: 'Sign out', primary: true, onClick: function () { signOut(); } }
+      ]);
+      return;
+    }
+
+    state.session = session; state.user = session.user; state.profile = profile;
+    var name = profile.full_name || 'Developer', h = new Date().getHours();
+    $('welcomeTitle').textContent = (h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening') + ', ' + name.split(' ')[0];
+    devLog('Developer access verified for ' + (profile.email || session.user.email) + '.', 'success');
+
+    $('gate').hidden = true;
+    $('app').hidden = false;
+    if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+    renderAll();
+    showPage(location.hash.slice(1), { push: false });
+    loadAll().catch(function (err) { devLog('Loading data failed: ' + err.message, 'error'); toast('Could not load data: ' + err.message, 'error'); });
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
